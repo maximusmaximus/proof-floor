@@ -70,8 +70,9 @@ const SCHEMAS: Record<string, Record<string, unknown>> = {
       id: { type: "string" },
       score: { type: "number" },
       reasoning: { type: "string" },
+      note: { type: "string" },
     },
-    required: ["key", "score", "reasoning"],
+    required: ["key", "score"],
   },
   vote_list: { type: "object", properties: {} },
   vote_cast: {
@@ -237,7 +238,7 @@ async function callTool(name: string, args: Record<string, unknown>): Promise<{ 
     if (name === "grade_submit") {
       const assignment = argAny(args, ["assignment", "answer_txid", "txid", "id"]);
       const score = Number(args.score);
-      const reasoning = arg(args, "reasoning").trim().replace(/\s+/g, " ");
+      const reasoning = argAny(args, ["reasoning", "note"]).trim().replace(/\s+/g, " ");
       if (!/^[A-Za-z0-9_-]{6,128}$/.test(assignment)) {
         return { payload: { ok: false, error: "That seat id does not look valid." }, isError: true };
       }

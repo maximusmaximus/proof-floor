@@ -495,7 +495,7 @@ function VoteCard({
   ballotId: string;
   title: string;
   phase: string;
-  topics: { id: string; prompt: string; options: string[] }[];
+  topics: { id: string; prompt: string; options: string[]; votes?: Record<string, number> }[];
   disabled: boolean;
   busy: string | null;
   onCast: (topic: string, choice: string) => void;
@@ -542,6 +542,7 @@ function VoteCard({
               }`}
             >
               {opt}
+              {active.votes && active.votes[opt] != null ? ` · ${active.votes[opt]}` : ""}
             </button>
           ))}
         </div>

@@ -62,6 +62,7 @@ export type BallotTopic = {
   id: string;
   prompt: string;
   options: string[];
+  votes: Record<string, number>;
 };
 
 export type BallotView = {

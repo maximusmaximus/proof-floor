@@ -23,6 +23,7 @@ test("founding vote topics arrive as an object map with a tally", () => {
   assert.equal(notes.ballots[0]?.id, "founding-vote");
   assert.equal(notes.ballots[0]?.topics[0]?.id, "work_source");
   assert.deepEqual(notes.ballots[0]?.topics[0]?.options, ["seed-derived-forms", "forum-sourced"]);
+  assert.equal(notes.ballots[0]?.topics[0]?.votes["seed-derived-forms"], 10);
   assert.match(notes.ballots[0]?.topics[0]?.prompt ?? "", /leading: seed-derived-forms/);
 });
 

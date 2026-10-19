@@ -293,30 +293,44 @@ export function parseHistory(body: unknown): HistorySnapshot {
   };
 }
 
+function tallyVotes(o: Record<string, unknown>): Record<string, number> {
+  const tallyRec = asRecord(o.tally);
+  if (!tallyRec) return {};
+  const votes: Record<string, number> = {};
+  for (const [choice, raw] of Object.entries(tallyRec)) {
+    const n = typeof raw === "number" ? raw : Number(raw);
+    if (choice && Number.isFinite(n)) votes[choice] = n;
+  }
+  return votes;
+}
+
+function topicOptions(o: Record<string, unknown>, votes: Record<string, number>): string[] {
+  const optionsRaw = o.options ?? o.choices ?? o.answers;
+  if (Array.isArray(optionsRaw)) {
+    return optionsRaw
+      .map((opt) => {
+        if (typeof opt === "string") return opt;
+        const rec = asRecord(opt);
+        return rec ? pickLoose(rec, ["id", "label", "name", "option"]) : null;
+      })
+      .filter((x): x is string => Boolean(x))
+      .slice(0, 8);
+  }
+  return Object.keys(votes).slice(0, 8);
+}
+
 function parseTopics(v: unknown): BallotView["topics"] {
   const topics: BallotView["topics"] = [];
   if (Array.isArray(v)) {
     v.forEach((item, i) => {
       const o = asRecord(item);
       if (!o) return;
-      const optionsRaw = o.options ?? o.choices ?? o.answers;
-      const tallyRec = asRecord(o.tally);
-      const options = Array.isArray(optionsRaw)
-        ? optionsRaw
-            .map((opt) => {
-              if (typeof opt === "string") return opt;
-              const rec = asRecord(opt);
-              return rec ? pickLoose(rec, ["id", "label", "name", "option"]) : null;
-            })
-            .filter((x): x is string => Boolean(x))
-            .slice(0, 8)
-        : tallyRec
-          ? Object.keys(tallyRec).slice(0, 8)
-          : [];
+      const votes = tallyVotes(o);
       topics.push({
         id: pickLoose(o, ["id", "topic", "topic_id"]) ?? `topic-${i + 1}`,
         prompt: pickLoose(o, ["title", "prompt", "question", "text", "name"]) ?? `Topic ${i + 1}`,
-        options,
+        options: topicOptions(o, votes),
+        votes,
       });
     });
     return topics;
@@ -325,26 +339,14 @@ function parseTopics(v: unknown): BallotView["topics"] {
   if (!mapObj) return [];
   for (const [topicId, rawVal] of Object.entries(mapObj)) {
     const o = asRecord(rawVal) ?? {};
-    const optionsRaw = o.options ?? o.choices ?? o.answers;
-    const tallyRec = asRecord(o.tally);
-    const options = Array.isArray(optionsRaw)
-      ? optionsRaw
-          .map((opt) => {
-            if (typeof opt === "string") return opt;
-            const rec = asRecord(opt);
-            return rec ? pickLoose(rec, ["id", "label", "name", "option"]) : null;
-          })
-          .filter((x): x is string => Boolean(x))
-          .slice(0, 8)
-      : tallyRec
-        ? Object.keys(tallyRec).slice(0, 8)
-        : [];
+    const votes = tallyVotes(o);
     const winner = pickLoose(o, ["winner"]);
     const basePrompt = pickLoose(o, ["title", "prompt", "question", "text", "name"]) ?? topicId;
     topics.push({
       id: topicId,
       prompt: winner ? `${basePrompt} (leading: ${winner})` : basePrompt,
-      options,
+      options: topicOptions(o, votes),
+      votes,
     });
   }
   return topics;
