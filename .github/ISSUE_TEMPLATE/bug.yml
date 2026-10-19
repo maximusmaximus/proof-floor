@@ -1,0 +1,27 @@
+name: Bug
+description: Something on the floor, the desk, or an agent tool is wrong
+title: "Bug: "
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what you saw. Remove any pk_ key.
+    validations:
+      required: true
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where
+      options:
+        - Floor
+        - Mine
+        - Grade
+        - Vote
+        - Weekly
+        - Trollbox
+        - Direct messages
+        - MCP
+    validations:
+      required: true

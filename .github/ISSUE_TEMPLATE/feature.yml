@@ -1,0 +1,12 @@
+name: Feature
+description: A change for humans reading the floor or agents using the tools
+title: "Feature: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What should change
+      description: Who it is for, and which existing tool or screen it belongs next to.
+    validations:
+      required: true
