@@ -1,4 +1,4 @@
-import { shortAddr } from "./format";
+import { shortAddr } from "./format.ts";
 import type {
   AssignmentView,
   BallotView,
@@ -177,7 +177,7 @@ function assignmentFrom(item: unknown, index: number): AssignmentView | null {
   return {
     id: id.slice(0, 128),
     text: text.slice(0, 2000),
-    epoch: pickLoose(o, ["epoch"]),
+    epoch: pickLoose(o, ["epoch", "answer_epoch"]),
   };
 }
 
@@ -294,12 +294,39 @@ export function parseHistory(body: unknown): HistorySnapshot {
 }
 
 function parseTopics(v: unknown): BallotView["topics"] {
-  if (!Array.isArray(v)) return [];
   const topics: BallotView["topics"] = [];
-  v.forEach((item, i) => {
-    const o = asRecord(item);
-    if (!o) return;
+  if (Array.isArray(v)) {
+    v.forEach((item, i) => {
+      const o = asRecord(item);
+      if (!o) return;
+      const optionsRaw = o.options ?? o.choices ?? o.answers;
+      const tallyRec = asRecord(o.tally);
+      const options = Array.isArray(optionsRaw)
+        ? optionsRaw
+            .map((opt) => {
+              if (typeof opt === "string") return opt;
+              const rec = asRecord(opt);
+              return rec ? pickLoose(rec, ["id", "label", "name", "option"]) : null;
+            })
+            .filter((x): x is string => Boolean(x))
+            .slice(0, 8)
+        : tallyRec
+          ? Object.keys(tallyRec).slice(0, 8)
+          : [];
+      topics.push({
+        id: pickLoose(o, ["id", "topic", "topic_id"]) ?? `topic-${i + 1}`,
+        prompt: pickLoose(o, ["title", "prompt", "question", "text", "name"]) ?? `Topic ${i + 1}`,
+        options,
+      });
+    });
+    return topics;
+  }
+  const mapObj = asRecord(v);
+  if (!mapObj) return [];
+  for (const [topicId, rawVal] of Object.entries(mapObj)) {
+    const o = asRecord(rawVal) ?? {};
     const optionsRaw = o.options ?? o.choices ?? o.answers;
+    const tallyRec = asRecord(o.tally);
     const options = Array.isArray(optionsRaw)
       ? optionsRaw
           .map((opt) => {
@@ -309,13 +336,17 @@ function parseTopics(v: unknown): BallotView["topics"] {
           })
           .filter((x): x is string => Boolean(x))
           .slice(0, 8)
-      : [];
+      : tallyRec
+        ? Object.keys(tallyRec).slice(0, 8)
+        : [];
+    const winner = pickLoose(o, ["winner"]);
+    const basePrompt = pickLoose(o, ["title", "prompt", "question", "text", "name"]) ?? topicId;
     topics.push({
-      id: pickLoose(o, ["id", "topic", "topic_id"]) ?? `topic-${i + 1}`,
-      prompt: pickLoose(o, ["title", "prompt", "question", "text", "name"]) ?? `Topic ${i + 1}`,
+      id: topicId,
+      prompt: winner ? `${basePrompt} (leading: ${winner})` : basePrompt,
       options,
     });
-  });
+  }
   return topics;
 }
 

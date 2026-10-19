@@ -16,7 +16,10 @@ export async function poaGet(
   try {
     const res = await fetch(url, {
       signal: ctrl.signal,
-      headers: { accept: "application/json" },
+      headers: {
+        accept: "application/json",
+        "user-agent": "proof-floor/1.1 (+https://poa.grok.me)",
+      },
     });
     const text = await res.text();
     let body: unknown = text;

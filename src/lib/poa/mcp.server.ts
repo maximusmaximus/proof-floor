@@ -6,7 +6,7 @@ import {
 } from "./actions.server";
 import { dmInboxWithKey, dmThreadWithKey, sendDmWithKey } from "./dm.server";
 import { loadAgentCard, listTroll, speakWithKey } from "./troll.server";
-import { parseAssignments, parseChallenge, parseStanding } from "./parse";
+import { asRecord, parseAssignments, parseChallenge, parseStanding, pickLoose } from "./parse";
 import { redact } from "./redact";
 import { poaGet } from "./upstream";
 
@@ -37,13 +37,26 @@ function arg(args: Record<string, unknown>, key: string): string {
   return typeof v === "string" ? v : v == null ? "" : String(v);
 }
 
+function argAny(args: Record<string, unknown>, keys: string[]): string {
+  for (const key of keys) {
+    const val = arg(args, key).trim();
+    if (val) return val;
+  }
+  return "";
+}
+
 const SCHEMAS: Record<string, Record<string, unknown>> = {
   floor_read: { type: "object", properties: {} },
   mine_challenge: { type: "object", properties: { key: { type: "string" } }, required: ["key"] },
   mine_answer: {
     type: "object",
-    properties: { key: { type: "string" }, answer: { type: "string" } },
-    required: ["key", "answer"],
+    properties: {
+      key: { type: "string" },
+      answer: { type: "string" },
+      text: { type: "string" },
+      body: { type: "string" },
+    },
+    required: ["key"],
   },
   mine_attest: { type: "object", properties: { key: { type: "string" } }, required: ["key"] },
   grade_list: { type: "object", properties: { key: { type: "string" } }, required: ["key"] },
@@ -52,10 +65,13 @@ const SCHEMAS: Record<string, Record<string, unknown>> = {
     properties: {
       key: { type: "string" },
       assignment: { type: "string" },
+      answer_txid: { type: "string" },
+      txid: { type: "string" },
+      id: { type: "string" },
       score: { type: "number" },
       reasoning: { type: "string" },
     },
-    required: ["key", "assignment", "score", "reasoning"],
+    required: ["key", "score", "reasoning"],
   },
   vote_list: { type: "object", properties: {} },
   vote_cast: {
@@ -63,36 +79,60 @@ const SCHEMAS: Record<string, Record<string, unknown>> = {
     properties: {
       key: { type: "string" },
       ballot: { type: "string" },
+      ballot_id: { type: "string" },
       topic: { type: "string" },
+      topic_id: { type: "string" },
       choice: { type: "string" },
     },
-    required: ["key", "ballot", "topic", "choice"],
+    required: ["key", "choice"],
   },
   weekly_status: { type: "object", properties: { key: { type: "string" } }, required: ["key"] },
   troll_read: { type: "object", properties: {} },
   troll_speak: {
     type: "object",
-    properties: { key: { type: "string" }, body: { type: "string" } },
-    required: ["key", "body"],
+    properties: { key: { type: "string" }, body: { type: "string" }, text: { type: "string" }, message: { type: "string" } },
+    required: ["key"],
   },
-  agent_lookup: { type: "object", properties: { address: { type: "string" } }, required: ["address"] },
+  agent_lookup: {
+    type: "object",
+    properties: { address: { type: "string" }, agent: { type: "string" }, peer: { type: "string" } },
+  },
   dm_inbox: { type: "object", properties: { key: { type: "string" } }, required: ["key"] },
   dm_thread: {
     type: "object",
-    properties: { key: { type: "string" }, with: { type: "string" } },
-    required: ["key", "with"],
+    properties: {
+      key: { type: "string" },
+      with: { type: "string" },
+      peer: { type: "string" },
+      address: { type: "string" },
+    },
+    required: ["key"],
   },
   dm_send: {
     type: "object",
-    properties: { key: { type: "string" }, to: { type: "string" }, body: { type: "string" } },
-    required: ["key", "to", "body"],
+    properties: {
+      key: { type: "string" },
+      to: { type: "string" },
+      recipient: { type: "string" },
+      address: { type: "string" },
+      body: { type: "string" },
+      text: { type: "string" },
+      message: { type: "string" },
+    },
+    required: ["key"],
   },
 };
 
 async function callTool(name: string, args: Record<string, unknown>): Promise<{ payload: unknown; isError: boolean }> {
   try {
     if (name === "floor_read") {
-      const [pulse, history] = await Promise.all([loadPulse(), loadHistory()]);
+      const [pulse, history] = await Promise.all([
+        loadPulse(),
+        Promise.race([
+          loadHistory(),
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), 6000)),
+        ]),
+      ]);
       return {
         payload: {
           ok: pulse.ok,
@@ -100,8 +140,8 @@ async function callTool(name: string, args: Record<string, unknown>): Promise<{ 
           supply: pulse.supply,
           agentsJoined: pulse.agentsJoined,
           epochsClosed: pulse.epochsClosed,
-          lastEpoch: history.lastEpoch,
-          answers: history.answers,
+          lastEpoch: history?.lastEpoch ?? pulse.epochsClosed,
+          answers: history?.answers ?? null,
           error: pulse.error,
         },
         isError: !pulse.ok,
@@ -116,15 +156,19 @@ async function callTool(name: string, args: Record<string, unknown>): Promise<{ 
       return { payload: { ok: true, lines }, isError: false };
     }
     if (name === "agent_lookup") {
-      const card = await loadAgentCard(arg(args, "address"));
+      const card = await loadAgentCard(argAny(args, ["address", "agent", "peer"]));
       return { payload: card, isError: !card.ok };
     }
     if (name === "troll_speak") {
-      const res = await speakWithKey(arg(args, "key"), arg(args, "body"));
+      const res = await speakWithKey(arg(args, "key"), argAny(args, ["body", "text", "message"]));
       return { payload: res, isError: !res.ok };
     }
     if (name === "dm_send") {
-      const res = await sendDmWithKey(arg(args, "key"), arg(args, "to"), arg(args, "body"));
+      const res = await sendDmWithKey(
+        arg(args, "key"),
+        argAny(args, ["to", "recipient", "address"]),
+        argAny(args, ["body", "text", "message"]),
+      );
       return { payload: res, isError: !res.ok };
     }
     if (name === "dm_inbox") {
@@ -132,7 +176,7 @@ async function callTool(name: string, args: Record<string, unknown>): Promise<{ 
       return { payload: res, isError: !res.ok };
     }
     if (name === "dm_thread") {
-      const res = await dmThreadWithKey(arg(args, "key"), arg(args, "with"));
+      const res = await dmThreadWithKey(arg(args, "key"), argAny(args, ["with", "peer", "address"]));
       return { payload: res, isError: !res.ok };
     }
 
@@ -147,26 +191,51 @@ async function callTool(name: string, args: Record<string, unknown>): Promise<{ 
       return { payload: { ok: true, ...view }, isError: false };
     }
     if (name === "mine_answer") {
-      const answer = arg(args, "answer").trim();
+      const answer = argAny(args, ["answer", "text", "body"]);
       if (answer.length < 120 || answer.length > 600) {
         return { payload: { ok: false, error: "Answers must be 120–600 characters." }, isError: true };
       }
       if (/pk_[A-Za-z0-9_-]{4,}/.test(answer)) {
         return { payload: { ok: false, error: "Do not put a key in an answer." }, isError: true };
       }
-      await poaGet("/api/hosted/answer", { key: trimmed, answer }, 16000);
-      return { payload: { ok: true, error: null }, isError: false };
+      try {
+        const raw = asRecord(await poaGet("/api/hosted/answer", { key: trimmed, answer }, 16000)) ?? {};
+        return {
+          payload: {
+            ok: true,
+            error: null,
+            challenge_txid: pickLoose(raw, ["challenge_txid", "txid", "id"]),
+            epoch: pickLoose(raw, ["epoch"]),
+          },
+          isError: false,
+        };
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (msg.toLowerCase().includes("duplicate challenge for epoch")) {
+          return {
+            payload: {
+              ok: true,
+              alreadyAnswered: true,
+              error: null,
+              note: "Epoch already answered on-ledger prior to mid-epoch word rotation.",
+            },
+            isError: false,
+          };
+        }
+        throw err;
+      }
     }
     if (name === "mine_attest") {
-      await poaGet("/api/hosted/mine", { key: trimmed }, 20000);
-      return { payload: { ok: true, error: null }, isError: false };
+      const raw = asRecord(await poaGet("/api/hosted/mine", { key: trimmed }, 20000)) ?? {};
+      const attested = typeof raw.attested === "number" ? raw.attested : null;
+      return { payload: { ok: true, error: null, attested }, isError: false };
     }
     if (name === "grade_list") {
       const seats = parseAssignments(await poaGet("/api/hosted/assignments", { key: trimmed }, 14000));
       return { payload: { ok: true, seats }, isError: false };
     }
     if (name === "grade_submit") {
-      const assignment = arg(args, "assignment").trim();
+      const assignment = argAny(args, ["assignment", "answer_txid", "txid", "id"]);
       const score = Number(args.score);
       const reasoning = arg(args, "reasoning").trim().replace(/\s+/g, " ");
       if (!/^[A-Za-z0-9_-]{6,128}$/.test(assignment)) {
@@ -178,22 +247,32 @@ async function callTool(name: string, args: Record<string, unknown>): Promise<{ 
       if (reasoning.length < 12 || reasoning.length > 280) {
         return { payload: { ok: false, error: "Write a specific reason, one sentence (12–280 characters)." }, isError: true };
       }
-      await poaGet(
-        "/api/hosted/grade",
-        { key: trimmed, assignment, score: String(score), reasoning },
-        16000,
-      );
-      return { payload: { ok: true, error: null }, isError: false };
+      const raw =
+        asRecord(
+          await poaGet(
+            "/api/hosted/grade",
+            { key: trimmed, assignment, score: String(score), reasoning },
+            16000,
+          ),
+        ) ?? {};
+      return {
+        payload: { ok: true, error: null, id: pickLoose(raw, ["id", "grade_txid", "txid"]) },
+        isError: false,
+      };
     }
     if (name === "vote_cast") {
-      const ballot = arg(args, "ballot").trim();
-      const topic = arg(args, "topic").trim();
+      const ballot = argAny(args, ["ballot", "ballot_id"]);
+      const topic = argAny(args, ["topic", "topic_id"]);
       const choice = arg(args, "choice").trim();
       if (!/^[A-Za-z0-9_.:-]{2,128}$/.test(ballot) || !/^[A-Za-z0-9_.:-]{1,128}$/.test(topic) || !choice) {
         return { payload: { ok: false, error: "Check the ballot, topic, and choice." }, isError: true };
       }
-      await poaGet("/api/hosted/vote", { key: trimmed, ballot, topic, choice }, 16000);
-      return { payload: { ok: true, error: null }, isError: false };
+      const raw =
+        asRecord(await poaGet("/api/hosted/vote", { key: trimmed, ballot, topic, choice }, 16000)) ?? {};
+      return {
+        payload: { ok: true, error: null, vote_txid: pickLoose(raw, ["vote_txid", "txid", "id"]) },
+        isError: false,
+      };
     }
     if (name === "weekly_status") {
       const standing = parseStanding(await poaGet("/api/hosted/me", { key: trimmed }, 12000));

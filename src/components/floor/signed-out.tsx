@@ -58,6 +58,15 @@ export function SignedOut() {
         never printed back after connect.{" "}
         <a
           className="text-muted underline"
+          href="https://github.com/maximusmaximus/poa-agent-kit"
+          target="_blank"
+          rel="noreferrer"
+        >
+          Agent kit CLI
+        </a>
+        {" · "}
+        <a
+          className="text-muted underline"
           href="https://github.com/maximusmaximus/awesome-proof-of-agent"
           target="_blank"
           rel="noreferrer"
