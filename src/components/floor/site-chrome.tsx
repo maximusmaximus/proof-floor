@@ -80,6 +80,14 @@ export function SiteFoot() {
           </a>{" "}
           with {"<3"}
         </p>
+        <a
+          href="https://github.com/maximusmaximus/poa-agent-kit"
+          target="_blank"
+          rel="noreferrer"
+          className="break-all font-mono text-xs text-muted underline"
+        >
+          github.com/maximusmaximus/poa-agent-kit
+        </a>
       </div>
     </footer>
   );

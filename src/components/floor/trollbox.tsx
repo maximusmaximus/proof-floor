@@ -36,7 +36,7 @@ function rel(iso: string | null, now: number): string {
   return `${Math.floor(h / 24)}d ago`;
 }
 
-export function Trollbox() {
+export function Trollbox({ bare = false }: { bare?: boolean }) {
   const { user, isPending } = useCurrentUserState();
   const [now, setNow] = useState(() => Date.now());
   const [lines, setLines] = useState<TrollMessage[] | null>(null);
@@ -217,8 +217,8 @@ export function Trollbox() {
   const yours = seat?.address ?? null;
 
   return (
-    <section className="px-4 pb-4" aria-label="Trollbox">
-      <div className="mx-auto w-full max-w-6xl">
+    <section className={bare ? "" : "px-4 pb-4"} aria-label="Trollbox">
+      <div className={bare ? "" : "mx-auto w-full max-w-6xl"}>
         <Card className="p-0">
           <header className="border-b border-border px-4 py-4">
             <div className="flex items-baseline justify-between gap-3">

@@ -1,7 +1,6 @@
-import { formatCount, formatPoints } from "@/lib/poa/format";
+import { formatPoints } from "@/lib/poa/format";
 import type { DeskState, HistorySnapshot, NotesSnapshot, PulseSnapshot } from "@/lib/poa/types";
 import { auditText } from "./checks";
-import { Card } from "./bits";
 import type { FloorView } from "./nav";
 import { Witness } from "./witness";
 
@@ -52,20 +51,7 @@ export function Overview({
         })}
       </div>
 
-      <div className="grid items-start gap-4 lg:grid-cols-2">
-        <div className="space-y-4">
-          <RecentEpochs history={history} />
-          <Card>
-            <h3 className="text-sm font-medium">How to read this</h3>
-            <p className="mt-2 text-pretty text-sm text-muted">
-              Floor is the human view. Mine, Grade, and Vote are the agent applications from the
-              operator kit. Weekly is where an agent key is connected. Points are research marks,
-              not money.
-            </p>
-          </Card>
-        </div>
-        <Witness pulse={pulse} history={history} notes={notes} desk={desk} chartOn />
-      </div>
+      <Witness pulse={pulse} history={history} notes={notes} desk={desk} chartOn />
     </div>
   );
 }
@@ -108,44 +94,4 @@ function statusFor(
     primary: desk.standing?.standing || "Connected",
     secondary: `${formatPoints(desk.standing?.spendable)} spendable`,
   };
-}
-
-export function RecentEpochs({ history }: { history: HistorySnapshot | null }) {
-  const rows = history?.ok ? [...history.recent].reverse().slice(0, 8) : [];
-  return (
-    <Card>
-      <h3 className="text-sm font-medium">Network activity</h3>
-      <p className="mt-1 text-sm text-muted">Closed epochs, newest first. Counts are what the ledger recorded.</p>
-      {history == null ? (
-        <div className="mt-3 h-32 animate-pulse rounded-sm bg-background" />
-      ) : rows.length === 0 ? (
-        <p className="mt-3 text-sm text-danger">{history.error ?? "No closed epochs in this snapshot."}</p>
-      ) : (
-        <div className="mt-3 overflow-x-auto">
-          <table className="w-full min-w-0 text-left text-sm">
-            <thead>
-              <tr className="text-xs text-subtle">
-                <th className="pb-2 pr-3 font-medium">Epoch</th>
-                <th className="pb-2 pr-3 font-medium">Answers</th>
-                <th className="pb-2 pr-3 font-medium">Attest</th>
-                <th className="pb-2 pr-3 font-medium">Graders</th>
-                <th className="pb-2 font-medium">Slashed</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => (
-                <tr key={row.epoch} className="border-t border-border font-mono tabular-nums">
-                  <td className="py-2 pr-3">{row.epoch}</td>
-                  <td className="py-2 pr-3">{formatCount(row.answers)}</td>
-                  <td className="py-2 pr-3">{formatCount(row.attestations)}</td>
-                  <td className="py-2 pr-3">{formatCount(row.graders)}</td>
-                  <td className="py-2">{formatCount(row.slashed)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </Card>
-  );
 }

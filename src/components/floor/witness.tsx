@@ -19,46 +19,28 @@ export function Witness({
 }) {
   return (
     <div className="space-y-4">
-      <div>
-        <div className="flex items-center gap-2">
-          <span className="live-dot inline-block size-1.5 rounded-full bg-accent" />
-          <h2 className="text-base font-medium tracking-tight">Witness</h2>
-        </div>
-        <p className="mt-1 text-sm text-pretty text-muted">
-          {desk
-            ? "Public floor, plus what this operator’s agent did here. Research points only."
-            : "Live public floor. No sign-in. Research points only."}
-        </p>
-      </div>
-
       {!pulse ? (
-        <div className="h-40 animate-pulse rounded-xl bg-card" />
+        <div className="h-28 animate-pulse rounded-xl bg-card" />
       ) : pulse.ok ? (
         <Card>
           <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
-            <p className="text-sm text-muted">{pulse.network}</p>
+            <p className="text-sm text-muted">{pulse.network || "Network"}</p>
             <p className="font-mono text-xs text-subtle">
               {pulse.chainId ? `${pulse.chainId} · ` : ""}
               {formatWhen(pulse.asOf)}
             </p>
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
             <Stat label="Agents joined" value={formatCount(pulse.agentsJoined)} />
             <Stat label="Epochs closed" value={formatCount(pulse.epochsClosed)} />
             <Stat label="Holders" value={formatCount(pulse.holders)} />
             <Stat label="Transactions" value={formatCount(pulse.txs)} />
           </div>
-          <div className="mt-5 border-t border-border pt-4">
-            <div className="font-mono text-xl tracking-tight tabular-nums">
-              {formatPoints(pulse.supply)}
-            </div>
-            <p className="mt-1 text-sm text-muted">Research points in supply. Not a price.</p>
-            <p className="mt-3 break-all font-mono text-xs text-subtle">
-              Checkpoint {formatCount(pulse.checkpoint)}
-              {pulse.finalTxs != null ? ` · ${formatCount(pulse.finalTxs)} final` : ""}
-              {pulse.stateRoot ? ` · ${pulse.stateRoot.slice(0, 12)}` : ""}
-            </p>
-          </div>
+          <p className="mt-4 border-t border-border pt-3 font-mono text-sm text-subtle">
+            {formatPoints(pulse.supply)} research points
+            {pulse.checkpoint != null ? ` · checkpoint ${formatCount(pulse.checkpoint)}` : ""}
+            {pulse.finalTxs != null ? ` · ${formatCount(pulse.finalTxs)} final` : ""}
+          </p>
         </Card>
       ) : (
         <Card>
@@ -66,111 +48,190 @@ export function Witness({
         </Card>
       )}
 
-      <Card>
-        <h3 className="text-sm font-medium">
-          {history?.lastEpoch != null ? `Epoch ${history.lastEpoch} and the run-up` : "Epoch history"}
-        </h3>
-        <p className="mt-1 text-sm text-muted">Bar height is attestations. The light bar is the latest closed epoch.</p>
-        {history == null ? (
-          <div className="mt-3 h-40 animate-pulse rounded-sm bg-background" />
-        ) : history.ok && history.recent.length > 0 && chartOn ? (
-          <div className="mt-3 h-40">
-            <EpochChart rows={history.recent} />
-          </div>
-        ) : (
-          <p className="mt-3 text-sm text-danger">{history.error ?? "No closed epochs in this snapshot."}</p>
-        )}
-        {history?.ok ? (
-          <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
-            <div>
-              <dt className="text-muted">Answers</dt>
-              <dd className="font-mono tabular-nums">{history.answers}</dd>
-            </div>
-            <div>
-              <dt className="text-muted">Graders</dt>
-              <dd className="font-mono tabular-nums">{history.graders}</dd>
-            </div>
-            <div>
-              <dt className="text-muted">Slashed</dt>
-              <dd className="font-mono tabular-nums">{history.slashed}</dd>
-            </div>
-            <div>
-              <dt className="text-muted">Ejected</dt>
-              <dd className="font-mono tabular-nums">{history.ejected}</dd>
-            </div>
-          </dl>
-        ) : null}
-      </Card>
+      <div className="grid items-start gap-4 lg:grid-cols-2">
+        <RecentEpochs history={history} />
+        <div className="space-y-4">
+          <Card>
+            <h3 className="text-sm font-medium">Notices</h3>
+            {notes == null ? (
+              <div className="mt-3 h-16 animate-pulse rounded-sm bg-background" />
+            ) : notes.notices.length === 0 ? (
+              <p className="mt-2 text-sm text-muted">{notes.error ?? "No active notice."}</p>
+            ) : (
+              <ul className="mt-3 space-y-3">
+                {notes.notices.map((n) => (
+                  <li key={n.id} className="border-t border-border pt-3 first:border-t-0 first:pt-0">
+                    <p className="font-mono text-xs text-subtle">{n.severity}</p>
+                    <p className="mt-1 text-pretty text-sm">{n.msg}</p>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Card>
+          <Card>
+            <h3 className="text-sm font-medium">Ballots</h3>
+            {notes == null ? (
+              <div className="mt-3 h-16 animate-pulse rounded-sm bg-background" />
+            ) : notes.ballots.length === 0 ? (
+              <p className="mt-2 text-sm text-muted">{notes.ballotNote || notes.error || "No open ballot."}</p>
+            ) : (
+              <ul className="mt-3 space-y-4">
+                {notes.ballots.map((ballot) => (
+                  <li key={ballot.id}>
+                    <p className="text-sm font-medium">{ballot.title}</p>
+                    <p className="break-all font-mono text-xs text-subtle">
+                      {ballot.phase ? `${ballot.phase} · ` : ""}
+                      {ballot.id}
+                    </p>
+                    <ul className="mt-2 space-y-2">
+                      {ballot.topics.map((topic) => (
+                        <li key={topic.id}>
+                          <p className="text-sm text-muted">{topic.prompt}</p>
+                          <p className="mt-1 break-words text-sm">
+                            {topic.options
+                              .map((opt) =>
+                                topic.votes[opt] != null ? `${opt} ${topic.votes[opt]}` : opt,
+                              )
+                              .join(" · ")}
+                          </p>
+                        </li>
+                      ))}
+                    </ul>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Card>
+        </div>
+      </div>
 
-      {history?.attesters?.length ? (
+      <div className="grid items-start gap-4 lg:grid-cols-2">
         <Card>
-          <h3 className="text-sm font-medium">Who attested last epoch</h3>
-          <ul className="mt-3 space-y-2">
-            {history.attesters.map((row) => (
-              <li key={row.address} className="flex items-baseline justify-between gap-3" title={row.address}>
-                <span className="truncate font-mono text-sm">{shortAddr(row.address)}</span>
-                <span className="font-mono text-sm tabular-nums text-muted">{formatCount(row.count)}</span>
-              </li>
-            ))}
-          </ul>
+          <h3 className="text-sm font-medium">
+            {history?.lastEpoch != null ? `Epoch ${history.lastEpoch}` : "Epoch history"}
+          </h3>
+          <p className="mt-1 text-sm text-muted">Bar height is attestations. The light bar is the latest close.</p>
+          {history == null ? (
+            <div className="mt-3 h-32 animate-pulse rounded-sm bg-background" />
+          ) : history.ok && history.recent.length > 0 && chartOn ? (
+            <div className="mt-3 h-32">
+              <EpochChart rows={history.recent} />
+            </div>
+          ) : (
+            <p className="mt-3 text-sm text-danger">{history.error ?? "No closed epochs in this snapshot."}</p>
+          )}
+          {history?.ok ? (
+            <dl className="mt-4 grid grid-cols-4 gap-3 text-sm">
+              <div>
+                <dt className="text-muted">Answers</dt>
+                <dd className="font-mono tabular-nums">{history.answers}</dd>
+              </div>
+              <div>
+                <dt className="text-muted">Graders</dt>
+                <dd className="font-mono tabular-nums">{history.graders}</dd>
+              </div>
+              <div>
+                <dt className="text-muted">Slashed</dt>
+                <dd className="font-mono tabular-nums">{history.slashed}</dd>
+              </div>
+              <div>
+                <dt className="text-muted">Ejected</dt>
+                <dd className="font-mono tabular-nums">{history.ejected}</dd>
+              </div>
+            </dl>
+          ) : null}
         </Card>
-      ) : null}
 
-      {history?.graderRows?.length ? (
-        <Card>
-          <h3 className="text-sm font-medium">Who graded</h3>
-          <ul className="mt-3 space-y-2">
-            {history.graderRows.map((row) => (
-              <li key={row.address} className="flex items-baseline justify-between gap-3" title={row.address}>
-                <span className="truncate font-mono text-sm">{shortAddr(row.address)}</span>
-                <span className="font-mono text-sm tabular-nums text-muted">{formatCount(row.count)}</span>
-              </li>
-            ))}
-          </ul>
-        </Card>
-      ) : null}
-
-      <Card>
-        <h3 className="text-sm font-medium">Notices</h3>
-        {notes == null ? (
-          <div className="mt-3 h-16 animate-pulse rounded-sm bg-background" />
-        ) : notes.notices.length === 0 ? (
-          <p className="mt-2 text-sm text-muted">{notes.error ?? "No active notice."}</p>
-        ) : (
-          <ul className="mt-3 space-y-3">
-            {notes.notices.map((n) => (
-              <li key={n.id} className="border-t border-border pt-3 first:border-t-0 first:pt-0">
-                <p className="font-mono text-xs text-subtle">{n.severity}</p>
-                <p className="mt-1 text-pretty text-sm">{n.msg}</p>
-              </li>
-            ))}
-          </ul>
-        )}
-      </Card>
-
-      {desk ? (
-      <Card>
-        <h3 className="text-sm font-medium">This desk</h3>
-        {desk.events.length > 0 ? (
-          <ol className="mt-3 space-y-3">
-            {desk.events.map((ev) => (
-              <li key={ev.id} className="grid grid-cols-[5.5rem_1fr] gap-3">
-                <span className="font-mono text-xs text-subtle">{ev.kind}</span>
-                <span className="min-w-0">
-                  <span className="block text-sm">{ev.summary}</span>
-                  <span className="font-mono text-xs text-subtle">{formatWhen(ev.at)}</span>
-                </span>
-              </li>
-            ))}
-          </ol>
-        ) : (
-          <p className="mt-2 text-sm text-muted">
-            Nothing from this operator yet. Actions on the desk land here.
-          </p>
-        )}
-      </Card>
-      ) : null}
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
+          {history?.attesters?.length ? (
+            <Card>
+              <h3 className="text-sm font-medium">Who attested last epoch</h3>
+              <ul className="mt-3 space-y-2">
+                {history.attesters.map((row) => (
+                  <li key={row.address} className="flex items-baseline justify-between gap-3" title={row.address}>
+                    <span className="truncate font-mono text-sm">{shortAddr(row.address)}</span>
+                    <span className="font-mono text-sm tabular-nums text-muted">{formatCount(row.count)}</span>
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          ) : null}
+          {history?.graderRows?.length ? (
+            <Card>
+              <h3 className="text-sm font-medium">Who graded</h3>
+              <ul className="mt-3 space-y-2">
+                {history.graderRows.map((row) => (
+                  <li key={row.address} className="flex items-baseline justify-between gap-3" title={row.address}>
+                    <span className="truncate font-mono text-sm">{shortAddr(row.address)}</span>
+                    <span className="font-mono text-sm tabular-nums text-muted">{formatCount(row.count)}</span>
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          ) : null}
+          {desk ? (
+            <Card>
+              <h3 className="text-sm font-medium">This desk</h3>
+              {desk.events.length > 0 ? (
+                <ol className="mt-3 space-y-3">
+                  {desk.events.map((ev) => (
+                    <li key={ev.id} className="grid grid-cols-[5.5rem_1fr] gap-3">
+                      <span className="font-mono text-xs text-subtle">{ev.kind}</span>
+                      <span className="min-w-0">
+                        <span className="block text-sm">{ev.summary}</span>
+                        <span className="font-mono text-xs text-subtle">{formatWhen(ev.at)}</span>
+                      </span>
+                    </li>
+                  ))}
+                </ol>
+              ) : (
+                <p className="mt-2 text-sm text-muted">Nothing from this operator yet.</p>
+              )}
+            </Card>
+          ) : null}
+        </div>
+      </div>
     </div>
+  );
+}
+
+function RecentEpochs({ history }: { history: HistorySnapshot | null }) {
+  const rows = history?.ok ? [...history.recent].reverse().slice(0, 8) : [];
+  return (
+    <Card>
+      <h3 className="text-sm font-medium">Recent epochs</h3>
+      <p className="mt-1 text-sm text-muted">Newest first. Counts are what the ledger recorded.</p>
+      {history == null ? (
+        <div className="mt-3 h-32 animate-pulse rounded-sm bg-background" />
+      ) : rows.length === 0 ? (
+        <p className="mt-3 text-sm text-danger">{history.error ?? "No closed epochs in this snapshot."}</p>
+      ) : (
+        <div className="mt-3 overflow-x-auto">
+          <table className="w-full text-left text-sm">
+            <thead>
+              <tr className="text-xs text-subtle">
+                <th className="pb-2 pr-3 font-medium">Epoch</th>
+                <th className="pb-2 pr-3 font-medium">Answers</th>
+                <th className="pb-2 pr-3 font-medium">Attest</th>
+                <th className="pb-2 pr-3 font-medium">Graders</th>
+                <th className="pb-2 font-medium">Slashed</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <tr key={row.epoch} className="border-t border-border font-mono tabular-nums">
+                  <td className="py-2 pr-3">{row.epoch}</td>
+                  <td className="py-2 pr-3">{formatCount(row.answers)}</td>
+                  <td className="py-2 pr-3">{formatCount(row.attestations)}</td>
+                  <td className="py-2 pr-3">{formatCount(row.graders)}</td>
+                  <td className="py-2">{formatCount(row.slashed)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </Card>
   );
 }
 

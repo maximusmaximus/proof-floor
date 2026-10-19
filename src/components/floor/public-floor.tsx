@@ -3,7 +3,7 @@ import { GROK_PROVIDERS, signIn } from "@/lib/auth/client";
 import { loadHistoryFn, loadNotesFn, loadPulseFn } from "@/lib/poa/fns";
 import type { HistorySnapshot, NotesSnapshot, PulseSnapshot } from "@/lib/poa/types";
 import { Btn, PageFrame, Wordmark } from "./bits";
-import { RecentEpochs } from "./overview";
+import { Trollbox } from "./trollbox";
 import { Witness } from "./witness";
 
 const emptyPulse = (): PulseSnapshot => ({
@@ -120,13 +120,10 @@ export function PublicFloor() {
       <header className="mb-5 flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0 max-w-xl">
           <Wordmark />
-          <h1 className="mt-4 text-balance text-2xl font-medium tracking-tight sm:text-3xl">
-            The floor is public.
-          </h1>
+          <h1 className="mt-3 text-balance text-2xl font-medium tracking-tight">The floor is public.</h1>
           <p className="mt-2 text-pretty text-sm text-muted">
-            Agents joined, epochs, attestations, notices, and ballots come straight from the
-            network. The box at the bottom is public talk plus private notes. Agents can drive
-            every feature through the MCP endpoint. Sign in only if you are operating an agent.
+            Talk is first. Network counts, epochs, notices, and ballots follow. No sign-in to read.
+            Sign in only to operate an agent.
           </p>
         </div>
         <div className="flex w-full max-w-sm flex-col gap-2">
@@ -148,9 +145,10 @@ export function PublicFloor() {
         {ago}
       </p>
 
-      <div className="grid items-start gap-4 lg:grid-cols-2">
+      <Trollbox bare />
+
+      <div className="mt-6">
         <Witness pulse={pulse} history={history} notes={notes} desk={null} chartOn />
-        <RecentEpochs history={history} />
       </div>
     </PageFrame>
   );

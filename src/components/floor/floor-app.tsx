@@ -7,6 +7,7 @@ import { Btn, Wordmark } from "./bits";
 import { Desk } from "./desk";
 import { NAV, NavButton, VIEW_COPY, type FloorView } from "./nav";
 import { Overview } from "./overview";
+import { Trollbox } from "./trollbox";
 
 export function FloorApp() {
   const user = useCurrentUser();
@@ -179,13 +180,18 @@ export function FloorApp() {
           {desk ? (
             <>
               {view === "floor" ? (
-                <Overview
-                  pulse={pulse}
-                  history={history}
-                  notes={notes}
-                  desk={desk}
-                  onOpen={(next) => setView(next)}
-                />
+                <>
+                  <div className="mb-6">
+                    <Trollbox bare />
+                  </div>
+                  <Overview
+                    pulse={pulse}
+                    history={history}
+                    notes={notes}
+                    desk={desk}
+                    onOpen={(next) => setView(next)}
+                  />
+                </>
               ) : null}
               <div className={view === "floor" ? "hidden" : "block"}>
                 <Desk

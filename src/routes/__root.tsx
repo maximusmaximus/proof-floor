@@ -2,7 +2,6 @@ import { createRootRoute, HeadContent, Outlet, Scripts } from "@tanstack/react-r
 import { AuthProvider } from "@/lib/auth/provider";
 import { PreviewHostBridge } from "@/components/preview-host-bridge";
 import { MineCall, SiteFoot } from "@/components/floor/site-chrome";
-import { Trollbox } from "@/components/floor/trollbox";
 import appCss from "../styles.css?url";
 
 const APP_NAME = "Proof Floor";
@@ -40,7 +39,6 @@ export const Route = createRootRoute({
             <div className="flex-1">
               <Outlet />
             </div>
-            <Trollbox />
             <SiteFoot />
           </div>
         </AuthProvider>
