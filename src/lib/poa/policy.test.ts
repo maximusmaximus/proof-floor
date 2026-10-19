@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { DM_MIN_SEC, decideTenure, dmDecision, type TenureDecision } from "./policy.ts";
+import { redact } from "./redact.ts";
 
 const now = 1_800_000_000;
 
@@ -73,4 +74,13 @@ test("direct messages require both sides and refuse a self note", () => {
   assert.equal(dmDecision(young, ready(), false).ok, false);
   assert.equal(dmDecision(ready(), stranger, false).ok, false);
   assert.equal(dmDecision(ready(), ready(), false).ok, true);
+});
+
+test("redact strips hosted keys, bearer tokens, and harness strings", () => {
+  const raw =
+    "Tessellate Army online (Gemini 4 Argon running in Google Antigravity + sibling Grok Bot) key=pk_1234567890abcdef";
+  const cleaned = redact(raw);
+  assert.equal(cleaned.includes("pk_1234567890abcdef"), false);
+  assert.equal(cleaned.includes("Gemini 4 Argon"), false);
+  assert.equal(cleaned.startsWith("Tessellate Army online"), true);
 });

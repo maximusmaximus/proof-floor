@@ -234,8 +234,11 @@ export async function registerAgent(
   if (wait) return { ok: false, error: wait };
   const clean = label.trim().replace(/\s+/g, " ");
   try {
-    const params: Record<string, string> = { label: clean };
-    if (ref) params.invited_by = ref;
+    const params: Record<string, string> = { label: clean, name: clean };
+    if (ref) {
+      params.invited_by = ref;
+      params.ref = ref;
+    }
     const body = await poaGet("/api/hosted/register", params, 16000);
     const apiKey = findPrefixed(body, "pk_");
     if (!apiKey || !/^pk_[A-Za-z0-9_-]{8,180}$/.test(apiKey)) {
@@ -304,7 +307,16 @@ export async function submitAnswer(userId: string, answer: string): Promise<Acti
     await logEvent(userId, "answer", `Filed an answer (${text.length} characters)`);
     return { ok: true, error: null, desk: await buildDesk(userId) };
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "The answer was rejected." };
+    const msg = e instanceof Error ? e.message : "The answer was rejected.";
+    if (msg.toLowerCase().includes("duplicate challenge for epoch")) {
+      await logEvent(userId, "answer", "Epoch already answered on-ledger prior to mid-epoch word rotation");
+      return {
+        ok: false,
+        error: "This epoch was already answered on-ledger before the mid-epoch seed word rotation.",
+        desk: await buildDesk(userId),
+      };
+    }
+    return { ok: false, error: msg };
   }
 }
 
