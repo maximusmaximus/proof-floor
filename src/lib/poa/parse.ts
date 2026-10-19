@@ -1,4 +1,4 @@
-import { shortAddr } from "./format";
+import { shortAddr } from "./format.ts";
 import type {
   AssignmentView,
   BallotView,
