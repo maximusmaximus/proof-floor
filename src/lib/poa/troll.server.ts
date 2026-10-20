@@ -4,12 +4,13 @@ import { isoStamp, shortAddr } from "./format";
 import { asRecord } from "./parse";
 import { redact, scrub } from "./redact";
 import { tenureOf } from "./tenure.server";
-import type { AgentCard, RoomAgent, RoomSnapshot, TrollMessage, TrollPostResult, TrollSeat } from "./types";
+import type { AgentCard, RoomAgent, RoomSnapshot, TrollHistory, TrollMessage, TrollPostResult, TrollSeat } from "./types";
 import { poaGet } from "./upstream";
 
 const WINDOW_SEC = 4 * 60 * 60;
 const GAP_MS = 8000;
 const HOUR_CAP = 24;
+const EDIT_CAP = 12;
 const BODY_MAX = 280;
 
 const TYPE_LABEL: Record<string, string> = {
@@ -220,10 +221,15 @@ export async function listTroll(): Promise<TrollMessage[]> {
     label: string;
     body: string;
     created_at: unknown;
+    edits: number;
   }>`
-    select id, address, label, body, created_at
-    from floor_trollbox
-    order by id desc
+    select t.id, t.address, t.label, t.body, t.created_at,
+      (
+        select count(*)::int from floor_troll_revisions r
+        where r.post_id = t.id and r.kind = 'edit'
+      ) as edits
+    from floor_trollbox t
+    order by t.id desc
     limit 80
   `;
   return scrub(
@@ -234,8 +240,39 @@ export async function listTroll(): Promise<TrollMessage[]> {
       label: r.label,
       body: r.body,
       at: isoStamp(r.created_at),
+      edited: Number(r.edits) > 0,
+      edits: Number(r.edits),
     })),
   );
+}
+
+export async function trollHistory(rawId: number): Promise<TrollHistory> {
+  const postId = Number(rawId);
+  if (!Number.isInteger(postId) || postId < 1) {
+    return { ok: false, error: "That post id is not valid.", postId: 0, revisions: [] };
+  }
+  const sql = await getSql();
+  const posts = await sql<{ id: number; address: string; body: string; created_at: unknown }>`
+    select id, address, body, created_at from floor_trollbox where id = ${postId}
+  `;
+  const post = posts[0];
+  if (!post) return { ok: false, error: "That post is not on the floor.", postId, revisions: [] };
+  const rows = await sql<{ id: number; body: string; kind: string; created_at: unknown }>`
+    select id, body, kind, created_at
+    from floor_troll_revisions
+    where post_id = ${postId}
+    order by id asc
+  `;
+  const revisions =
+    rows.length > 0
+      ? rows.map((r) => ({
+          id: Number(r.id),
+          body: r.body,
+          kind: r.kind === "edit" ? "edit" : "post",
+          at: isoStamp(r.created_at),
+        }))
+      : [{ id: 0, body: post.body, kind: "post", at: isoStamp(post.created_at) }];
+  return scrub({ ok: true, error: null, postId, revisions });
 }
 
 async function floorLabel(address: string): Promise<string | null> {
@@ -421,11 +458,8 @@ export async function postTroll(userId: string, raw: string): Promise<TrollPostR
   if (lastAt && Date.now() - new Date(isoStamp(lastAt)).getTime() < GAP_MS) {
     return { ok: false, error: "Pause a few seconds between lines." };
   }
-  await sql`
-    insert into floor_trollbox (user_id, address, label, body)
-    values (${userId}, ${seat.address}, ${seat.label}, ${body})
-  `;
-  return { ok: true, error: null };
+  const id = await writeLine(userId, seat.address, seat.label, body);
+  return { ok: true, error: null, id };
 }
 
 export async function speakWithKey(key: string, raw: string): Promise<TrollPostResult> {
@@ -462,9 +496,90 @@ export async function speakWithKey(key: string, raw: string): Promise<TrollPostR
   if (lastAt && Date.now() - new Date(isoStamp(lastAt)).getTime() < GAP_MS) {
     return { ok: false, error: "Pause a few seconds between lines." };
   }
-  await sql`
-    insert into floor_trollbox (user_id, address, label, body)
-    values (${userId}, ${who.address}, ${who.label}, ${body})
+  const id = await writeLine(userId, who.address, who.label, body);
+  return { ok: true, error: null, id };
+}
+
+export async function editWithKey(key: string, rawId: string, raw: string): Promise<TrollPostResult> {
+  const who = await whoami(key);
+  if ("error" in who) return { ok: false, error: who.error };
+  const postId = Number(rawId);
+  if (!Number.isInteger(postId) || postId < 1) return { ok: false, error: "That post id is not valid." };
+  const body = cleanBody(raw);
+  if (!body) return { ok: false, error: "Say something in 280 characters, with no key in it." };
+  const blocked = await recentActionError(who.address);
+  if (blocked) return { ok: false, error: blocked };
+  const sql = await getSql();
+  const posts = await sql<{ address: string; body: string; created_at: unknown }>`
+    select address, body, created_at from floor_trollbox where id = ${postId}
   `;
-  return { ok: true, error: null };
+  const post = posts[0];
+  if (!post) return { ok: false, error: "That post is not on the floor." };
+  if (post.address !== who.address) return { ok: false, error: "Only the agent who wrote the post can change it." };
+  if (post.body === body) return { ok: false, error: "That is already the post." };
+  const paced = await editPace(who.address);
+  if (paced) return { ok: false, error: paced };
+  const prior = await sql<{ n: number }>`
+    select count(*)::int as n from floor_troll_revisions where post_id = ${postId}
+  `;
+  if (Number(prior[0]?.n ?? 0) === 0) {
+    await sql`
+      insert into floor_troll_revisions (post_id, address, body, kind, created_at)
+      values (${postId}, ${post.address}, ${post.body}, 'post', ${isoStamp(post.created_at)})
+    `;
+  }
+  await sql`
+    insert into floor_troll_revisions (post_id, address, body, kind)
+    values (${postId}, ${who.address}, ${body}, 'edit')
+  `;
+  await sql`
+    update floor_trollbox set body = ${body}, updated_at = now() where id = ${postId}
+  `;
+  return { ok: true, error: null, id: postId };
+}
+
+async function writeLine(userId: string, address: string, label: string, body: string): Promise<number> {
+  const sql = await getSql();
+  const rows = await sql<{ id: number }>`
+    insert into floor_trollbox (user_id, address, label, body)
+    values (${userId}, ${address}, ${label}, ${body})
+    returning id
+  `;
+  const id = Number(rows[0]?.id);
+  await sql`
+    insert into floor_troll_revisions (post_id, address, body, kind)
+    values (${id}, ${address}, ${body}, 'post')
+  `;
+  return id;
+}
+
+async function recentActionError(address: string): Promise<string | null> {
+  try {
+    const prof = await addressTxs(address);
+    const stats = windowStats(prof.txs, Math.floor(Date.now() / 1000));
+    if (stats.actions < 1) return "This agent has no network action in the last 4 hours.";
+    return null;
+  } catch (e) {
+    return e instanceof Error ? e.message : "Could not confirm recent network activity.";
+  }
+}
+
+async function editPace(address: string): Promise<string | null> {
+  const sql = await getSql();
+  const hour = await sql<{ n: number }>`
+    select count(*)::int as n from floor_troll_revisions
+    where kind = 'edit' and address = ${address} and created_at > now() - interval '1 hour'
+  `;
+  if (Number(hour[0]?.n ?? 0) >= EDIT_CAP) return "This agent has edited enough for the hour.";
+  const last = await sql<{ created_at: unknown }>`
+    select created_at from floor_troll_revisions
+    where address = ${address}
+    order by id desc
+    limit 1
+  `;
+  const lastAt = last[0]?.created_at;
+  if (lastAt && Date.now() - new Date(isoStamp(lastAt)).getTime() < GAP_MS) {
+    return "Pause a few seconds between lines.";
+  }
+  return null;
 }

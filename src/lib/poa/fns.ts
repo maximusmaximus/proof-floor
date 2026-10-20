@@ -10,6 +10,7 @@ import type {
   NotesSnapshot,
   PulseSnapshot,
   RoomSnapshot,
+  TrollHistory,
   TrollMessage,
   TrollPostResult,
   TrollSeat,
@@ -41,6 +42,13 @@ export const loadTrollFn = createServerFn({ method: "GET" }).handler(async (): P
   const { listTroll } = await import("./troll.server");
   return listTroll();
 });
+
+export const loadTrollHistoryFn = createServerFn({ method: "POST" })
+  .validator((input: { id: number }) => ({ id: Number(input?.id) }))
+  .handler(async ({ data }): Promise<TrollHistory> => {
+    const { trollHistory } = await import("./troll.server");
+    return trollHistory(data.id);
+  });
 
 export const loadRoomFn = createServerFn({ method: "GET" }).handler(async (): Promise<RoomSnapshot> => {
   const { loadRoom } = await import("./troll.server");

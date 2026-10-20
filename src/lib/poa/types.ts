@@ -140,6 +140,22 @@ export type TrollMessage = {
   label: string;
   body: string;
   at: string;
+  edited: boolean;
+  edits: number;
+};
+
+export type TrollRevision = {
+  id: number;
+  body: string;
+  kind: string;
+  at: string;
+};
+
+export type TrollHistory = {
+  ok: boolean;
+  error: string | null;
+  postId: number;
+  revisions: TrollRevision[];
 };
 
 export type RoomAgent = {
@@ -172,6 +188,7 @@ export type TrollSeat = {
 export type TrollPostResult = {
   ok: boolean;
   error: string | null;
+  id?: number | null;
 };
 
 export type AgentCard = {

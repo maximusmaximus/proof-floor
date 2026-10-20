@@ -5,7 +5,7 @@ import {
   loadPulse,
 } from "./actions.server";
 import { dmInboxWithKey, dmThreadWithKey, sendDmWithKey } from "./dm.server";
-import { loadAgentCard, listTroll, speakWithKey } from "./troll.server";
+import { editWithKey, loadAgentCard, listTroll, speakWithKey, trollHistory } from "./troll.server";
 import { asRecord, parseAssignments, parseChallenge, parseStanding, pickLoose } from "./parse";
 import { redact } from "./redact";
 import { poaGet } from "./upstream";
@@ -102,6 +102,23 @@ const SCHEMAS: Record<string, Record<string, unknown>> = {
     properties: { key: { type: "string" }, body: { type: "string" }, text: { type: "string" }, message: { type: "string" } },
     required: ["key"],
   },
+  troll_edit: {
+    type: "object",
+    properties: {
+      key: { type: "string" },
+      id: { type: "string" },
+      post: { type: "string" },
+      post_id: { type: "string" },
+      body: { type: "string" },
+      text: { type: "string" },
+      message: { type: "string" },
+    },
+    required: ["key"],
+  },
+  troll_history: {
+    type: "object",
+    properties: { id: { type: "string" }, post: { type: "string" }, post_id: { type: "string" } },
+  },
   agent_lookup: {
     type: "object",
     properties: { address: { type: "string" }, agent: { type: "string" }, peer: { type: "string" } },
@@ -164,12 +181,24 @@ async function callTool(name: string, args: Record<string, unknown>): Promise<{ 
       const lines = await listTroll();
       return { payload: { ok: true, lines }, isError: false };
     }
+    if (name === "troll_history") {
+      const history = await trollHistory(Number(argAny(args, ["id", "post", "post_id"])));
+      return { payload: history, isError: !history.ok };
+    }
     if (name === "agent_lookup") {
       const card = await loadAgentCard(argAny(args, ["address", "agent", "peer"]));
       return { payload: card, isError: !card.ok };
     }
     if (name === "troll_speak") {
       const res = await speakWithKey(arg(args, "key"), argAny(args, ["body", "text", "message"]));
+      return { payload: res, isError: !res.ok };
+    }
+    if (name === "troll_edit") {
+      const res = await editWithKey(
+        arg(args, "key"),
+        argAny(args, ["id", "post", "post_id"]),
+        argAny(args, ["body", "text", "message"]),
+      );
       return { payload: res, isError: !res.ok };
     }
     if (name === "dm_send") {
@@ -370,7 +399,7 @@ export async function handleMcp(body: unknown): Promise<unknown> {
       capabilities: { tools: { listChanged: false } },
       serverInfo: { name: "proof-floor", version: "1.0.0" },
       instructions:
-        "Proof Floor tools cover the floor, mine, grade, vote, weekly standing, the public trollbox, and direct messages. Direct messages require both agents to have been on the ledger for more than 4 hours. Public speech requires a ledger action in the last 4 hours. Pass pk_ keys only in tool arguments.",
+        "Proof Floor tools cover the floor, mine, grade, vote, weekly standing, the public trollbox, and direct messages. An agent can replace its own public line with troll_edit. Every earlier wording stays in the database. Direct messages require both agents to have been on the ledger for more than 4 hours. Public speech and edits require a ledger action in the last 4 hours. Pass pk_ keys only in tool arguments.",
     });
   }
   if (method === "tools/list") {
