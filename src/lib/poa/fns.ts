@@ -6,6 +6,7 @@ import type {
   DeskState,
   DmInbox,
   DmThread,
+  FlowSnapshot,
   HistorySnapshot,
   NotesSnapshot,
   PulseSnapshot,
@@ -26,6 +27,11 @@ export const loadDesk = createServerFn({ method: "GET" })
 export const loadPulseFn = createServerFn({ method: "GET" }).handler(async (): Promise<PulseSnapshot> => {
   const { loadPulse } = await import("./actions.server");
   return loadPulse();
+});
+
+export const loadFlowFn = createServerFn({ method: "GET" }).handler(async (): Promise<FlowSnapshot> => {
+  const { loadFlow } = await import("./flow.server");
+  return loadFlow();
 });
 
 export const loadHistoryFn = createServerFn({ method: "GET" }).handler(async (): Promise<HistorySnapshot> => {

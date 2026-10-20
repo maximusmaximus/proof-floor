@@ -91,6 +91,31 @@ export type PulseSnapshot = {
   asOf: string | null;
 };
 
+export type FlowTarget = {
+  id: string;
+  short: string;
+};
+
+export type FlowTx = {
+  id: string;
+  type: string;
+  label: string;
+  from: string;
+  fromShort: string;
+  to: string;
+  going: string;
+  amount: string;
+  at: string;
+  final: boolean;
+  targets: FlowTarget[];
+};
+
+export type FlowSnapshot = {
+  ok: boolean;
+  error: string | null;
+  txs: FlowTx[];
+};
+
 export type EpochPoint = {
   epoch: number;
   attestations: number;

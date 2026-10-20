@@ -3,6 +3,7 @@ import { Bar, BarChart, Cell, ResponsiveContainer, Tooltip, XAxis } from "rechar
 import { formatCount, formatPoints, formatWhen, shortAddr } from "@/lib/poa/format";
 import type { DeskState, EpochPoint, HistorySnapshot, NotesSnapshot, PulseSnapshot } from "@/lib/poa/types";
 import { Card, Stat } from "./bits";
+import { FlowBoard } from "./flow";
 
 export function Witness({
   pulse,
@@ -47,6 +48,8 @@ export function Witness({
           <p className="text-sm text-danger">{pulse.error ?? "The network did not answer."}</p>
         </Card>
       )}
+
+      <FlowBoard />
 
       <div className="grid items-start gap-4 lg:grid-cols-2">
         <RecentEpochs history={history} />
