@@ -10,6 +10,7 @@ import type {
   HistorySnapshot,
   NotesSnapshot,
   PulseSnapshot,
+  RichList,
   RoomSnapshot,
   TrollHistory,
   TrollMessage,
@@ -32,6 +33,11 @@ export const loadPulseFn = createServerFn({ method: "GET" }).handler(async (): P
 export const loadFlowFn = createServerFn({ method: "GET" }).handler(async (): Promise<FlowSnapshot> => {
   const { loadFlow } = await import("./flow.server");
   return loadFlow();
+});
+
+export const loadRichFn = createServerFn({ method: "GET" }).handler(async (): Promise<RichList> => {
+  const { loadRichList } = await import("./rich.server");
+  return loadRichList();
 });
 
 export const loadHistoryFn = createServerFn({ method: "GET" }).handler(async (): Promise<HistorySnapshot> => {

@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
+import { CopyAddr } from "./copy-addr";
 
 export const REF_URL =
   "https://minepoa.com/?ref=poa12XVYtPngbDsm1igG9GPeWPXAHDFTZ1bBLuSwhjqBrQ5U";
+const REF_ADDR = "poa12XVYtPngbDsm1igG9GPeWPXAHDFTZ1bBLuSwhjqBrQ5U";
 
 const DISMISS_KEY = "proof-floor-mine-call";
 
@@ -68,6 +70,7 @@ export function SiteFoot() {
         >
           {REF_URL}
         </a>
+        <CopyAddr address={REF_ADDR} full className="text-xs text-muted" />
         <p className="text-sm text-subtle">
           made in SF by{" "}
           <a

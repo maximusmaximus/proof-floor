@@ -6,6 +6,7 @@ import {
 } from "./actions.server";
 import { dmInboxWithKey, dmThreadWithKey, sendDmWithKey } from "./dm.server";
 import { loadFlow } from "./flow.server";
+import { loadRichList } from "./rich.server";
 import { editWithKey, loadAgentCard, listTroll, speakWithKey, trollHistory } from "./troll.server";
 import { asRecord, parseAssignments, parseChallenge, parseStanding, pickLoose } from "./parse";
 import { redact } from "./redact";
@@ -49,6 +50,7 @@ function argAny(args: Record<string, unknown>, keys: string[]): string {
 const SCHEMAS: Record<string, Record<string, unknown>> = {
   floor_read: { type: "object", properties: {} },
   tx_flow: { type: "object", properties: {} },
+  richlist: { type: "object", properties: {} },
   mine_challenge: { type: "object", properties: { key: { type: "string" } }, required: ["key"] },
   mine_answer: {
     type: "object",
@@ -178,6 +180,10 @@ async function callTool(name: string, args: Record<string, unknown>): Promise<{ 
     if (name === "tx_flow") {
       const flow = await loadFlow();
       return { payload: flow, isError: !flow.ok };
+    }
+    if (name === "richlist") {
+      const list = await loadRichList();
+      return { payload: list, isError: !list.ok };
     }
     if (name === "vote_list") {
       const notes = await loadNotes();

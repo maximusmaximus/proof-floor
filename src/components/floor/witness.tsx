@@ -1,9 +1,11 @@
 import { useState } from "react";
 import { Bar, BarChart, Cell, ResponsiveContainer, Tooltip, XAxis } from "recharts";
-import { formatCount, formatPoints, formatWhen, shortAddr } from "@/lib/poa/format";
+import { formatCount, formatPoints, formatWhen } from "@/lib/poa/format";
 import type { DeskState, EpochPoint, HistorySnapshot, NotesSnapshot, PulseSnapshot } from "@/lib/poa/types";
 import { Card, Stat } from "./bits";
+import { CopyAddr } from "./copy-addr";
 import { FlowBoard } from "./flow";
+import { RichBoard } from "./rich";
 
 export function Witness({
   pulse,
@@ -49,7 +51,10 @@ export function Witness({
         </Card>
       )}
 
-      <FlowBoard />
+      <div className="grid items-start gap-4 lg:grid-cols-2">
+        <FlowBoard />
+        <RichBoard />
+      </div>
 
       <div className="grid items-start gap-4 lg:grid-cols-2">
         <RecentEpochs history={history} />
@@ -151,8 +156,8 @@ export function Witness({
               <h3 className="text-sm font-medium">Who attested last epoch</h3>
               <ul className="mt-3 space-y-2">
                 {history.attesters.map((row) => (
-                  <li key={row.address} className="flex items-baseline justify-between gap-3" title={row.address}>
-                    <span className="truncate font-mono text-sm">{shortAddr(row.address)}</span>
+                  <li key={row.address} className="flex items-center justify-between gap-3" title={row.address}>
+                    <CopyAddr address={row.address} />
                     <span className="font-mono text-sm tabular-nums text-muted">{formatCount(row.count)}</span>
                   </li>
                 ))}
@@ -164,8 +169,8 @@ export function Witness({
               <h3 className="text-sm font-medium">Who graded</h3>
               <ul className="mt-3 space-y-2">
                 {history.graderRows.map((row) => (
-                  <li key={row.address} className="flex items-baseline justify-between gap-3" title={row.address}>
-                    <span className="truncate font-mono text-sm">{shortAddr(row.address)}</span>
+                  <li key={row.address} className="flex items-center justify-between gap-3" title={row.address}>
+                    <CopyAddr address={row.address} />
                     <span className="font-mono text-sm tabular-nums text-muted">{formatCount(row.count)}</span>
                   </li>
                 ))}

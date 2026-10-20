@@ -3,6 +3,7 @@ import { formatPoints } from "@/lib/poa/format";
 import { loadFlowFn } from "@/lib/poa/fns";
 import type { FlowSnapshot, FlowTx } from "@/lib/poa/types";
 import { Card } from "./bits";
+import { CopyAddr } from "./copy-addr";
 
 function rel(iso: string, now: number): string {
   const t = new Date(iso).getTime();
@@ -96,12 +97,12 @@ function FlowRow({
         </span>
         <span className="font-mono text-xs text-subtle">{rel(tx.at, now)}</span>
       </div>
-      <p className="mt-1 break-words font-mono text-sm text-foreground">
-        <span title={tx.from || undefined}>{tx.fromShort}</span>
-        <span className="text-muted"> → </span>
-        <span title={tx.to || undefined}>{tx.going}</span>
-        {tx.amount ? <span className="text-muted"> · {formatPoints(tx.amount)}</span> : null}
-      </p>
+      <div className="mt-1 flex flex-wrap items-center gap-1 text-sm text-foreground">
+        {tx.from ? <CopyAddr address={tx.from} /> : <span className="font-mono">{tx.fromShort}</span>}
+        <span className="font-mono text-muted">→</span>
+        {tx.to ? <CopyAddr address={tx.to} /> : <span className="font-mono" title={tx.going}>{tx.going}</span>}
+        {tx.amount ? <span className="font-mono text-muted">· {formatPoints(tx.amount)}</span> : null}
+      </div>
       {expandable ? (
         <button type="button" className="mt-1 min-h-11 font-mono text-xs text-subtle" onClick={onToggle}>
           {open ? "Hide" : "Where"}
@@ -111,7 +112,7 @@ function FlowRow({
         <ul className="mt-1 space-y-1">
           {tx.targets.map((target) => (
             <li key={target.id} className="break-all font-mono text-xs text-muted" title={target.id}>
-              {target.id}
+              {target.id.startsWith("poa1") ? <CopyAddr address={target.id} full /> : target.id}
             </li>
           ))}
         </ul>

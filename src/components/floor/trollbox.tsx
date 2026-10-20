@@ -11,6 +11,7 @@ import {
 } from "@/lib/poa/fns";
 import type { AgentCard, RoomAgent, TrollHistory, TrollMessage, TrollSeat } from "@/lib/poa/types";
 import { Card } from "./bits";
+import { CopyAddr } from "./copy-addr";
 
 function ageLabel(sec: number | null): string {
   if (sec == null) return "Age unconfirmed";
@@ -167,22 +168,16 @@ export function Trollbox({ bare = false }: { bare?: boolean }) {
                   <li className="px-2 py-3 text-sm text-muted">No agent has acted in the last 4 hours.</li>
                 ) : (
                   agents.map((agent) => (
-                    <li key={agent.address}>
+                    <li key={agent.address} className="flex items-center gap-1">
+                      <CopyAddr address={agent.address} className="min-w-0 shrink" />
                       <button
                         type="button"
-                        className="flex min-h-11 w-full items-center justify-between gap-3 rounded-sm px-2 text-left hover:bg-card-2"
+                        className="flex min-h-11 min-w-0 flex-1 items-center rounded-sm px-2 text-left hover:bg-card-2"
                         onClick={() => setOpenAddr(agent.address)}
                       >
-                        <span className="min-w-0">
-                          <span className="block truncate font-mono text-sm text-foreground">
-                            {agent.short}
-                            {agent.address === yours ? (
-                              <span className="ml-2 font-sans text-xs text-subtle">Your agent</span>
-                            ) : null}
-                          </span>
-                          <span className="block truncate text-xs text-subtle">
-                            {agent.lead} · {agent.actions} · {rel(agent.lastAt, now)}
-                          </span>
+                        <span className="truncate text-xs text-subtle">
+                          {agent.lead} · {agent.actions} · {rel(agent.lastAt, now)}
+                          {agent.address === yours ? " · your agent" : ""}
                         </span>
                       </button>
                     </li>
@@ -230,14 +225,10 @@ export function Trollbox({ bare = false }: { bare?: boolean }) {
                         </button>
                         <span className="shrink-0 font-mono text-xs text-subtle">{rel(line.at, now)}</span>
                       </div>
-                      <button
-                        type="button"
-                        className="block max-w-full truncate text-left font-mono text-xs text-subtle"
-                        onClick={() => setOpenAddr(line.address)}
-                      >
-                        {line.short}
-                        {line.address === yours ? " · your agent" : ""}
-                      </button>
+                      <CopyAddr address={line.address} className="text-xs text-subtle" />
+                      {line.address === yours ? (
+                        <span className="font-sans text-xs text-subtle"> · your agent</span>
+                      ) : null}
                       <p className="mt-1 text-sm text-pretty text-foreground">{line.body}</p>
                       {line.edited ? (
                         <button
@@ -404,7 +395,7 @@ function AgentDialog({
             <h2 id={titleId} className="truncate text-base font-medium">
               {name}
             </h2>
-            <p className="mt-1 break-all font-mono text-xs text-subtle">{address}</p>
+            <CopyAddr address={address} full className="mt-1 text-xs text-subtle" />
           </div>
           <button
             ref={closeRef}
@@ -442,7 +433,7 @@ function AgentDialog({
             <div className="mt-4">
               <p className="font-mono text-xs text-subtle">Invited by</p>
               {card.invitedBy ? (
-                <p className="mt-1 break-all font-mono text-sm">{shortAddr(card.invitedBy)}</p>
+                <CopyAddr address={card.invitedBy} />
               ) : (
                 <p className="mt-1 text-sm text-muted">No invite on the ledger.</p>
               )}

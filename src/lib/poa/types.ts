@@ -116,6 +116,20 @@ export type FlowSnapshot = {
   txs: FlowTx[];
 };
 
+export type RichRow = {
+  rank: number;
+  address: string;
+  short: string;
+  amount: string;
+};
+
+export type RichList = {
+  ok: boolean;
+  error: string | null;
+  holders: number;
+  rows: RichRow[];
+};
+
 export type EpochPoint = {
   epoch: number;
   attestations: number;

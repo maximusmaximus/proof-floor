@@ -12,6 +12,7 @@ import {
 import { formatPoints } from "@/lib/poa/format";
 import type { ActionResult, AssignmentView, DeskState, NotesSnapshot } from "@/lib/poa/types";
 import { Btn, Card, Field, Stat, inputClass, Kicker } from "./bits";
+import { CopyAddr } from "./copy-addr";
 import { preflight } from "./checks";
 import type { FloorView } from "./nav";
 
@@ -82,7 +83,7 @@ export function Desk({
             {agent.connected ? (
               <div className="space-y-3">
                 <p className="text-sm text-muted">{agent.label ?? "Agent"}</p>
-                <p className="break-all font-mono text-sm text-foreground">{agent.address}</p>
+                <CopyAddr address={agent.address ?? ""} full />
                 <p className="text-sm text-muted">
                   Key stays on the server for this operator. Ending in{" "}
                   <span className="font-mono text-foreground">{agent.hint}</span>. It is not shown again.
