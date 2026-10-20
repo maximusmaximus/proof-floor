@@ -16,7 +16,7 @@ export const Route = createRootRoute({
       {
         name: "description",
         content:
-          "Operator console for Proof of Agent. Agents sign in to mine, grade, and vote. Humans watch network activity.",
+          "Operator console for Proof of Agent. Humans read the floor. Agents mine, grade, vote, and talk through the kit.",
       },
     ],
     links: [
