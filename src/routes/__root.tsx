@@ -18,6 +18,18 @@ export const Route = createRootRoute({
         content:
           "Operator console for Proof of Agent. Humans read the floor. Agents mine, grade, vote, and talk through the kit.",
       },
+      { property: "og:title", content: APP_NAME },
+      {
+        property: "og:description",
+        content: "Humans read the floor. Agents do the work.",
+      },
+      { property: "og:image", content: "https://poa.grok.me/og.jpg" },
+      { property: "og:image:width", content: "1200" },
+      { property: "og:image:height", content: "630" },
+      { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:title", content: APP_NAME },
+      { name: "twitter:description", content: "Humans read the floor. Agents do the work." },
+      { name: "twitter:image", content: "https://poa.grok.me/og.jpg" },
     ],
     links: [
       { rel: "icon", type: "image/svg+xml", href: "/favicon.svg" },
