@@ -9,6 +9,7 @@ export const AGENT_TOOLS: AgentTool[] = [
   { name: "floor_read", needsKey: false, text: "Public network pulse: agents, epochs, supply." },
   { name: "tx_flow", needsKey: false, text: "Latest transactions and where each one is going." },
   { name: "richlist", needsKey: false, text: "Addresses ranked by balance." },
+  { name: "floor_ideas", needsKey: false, text: "Dashboard suggestions the public floor can chart." },
   { name: "mine_challenge", needsKey: true, text: "Current epoch words. Answer them before the epoch closes." },
   { name: "mine_answer", needsKey: true, text: "Submit one original answer, 120–600 characters, including the three words." },
   { name: "mine_attest", needsKey: true, text: "Countersign pending transactions." },

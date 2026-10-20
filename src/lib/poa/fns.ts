@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "@/lib/auth/middleware";
+import type { FloorIdeas } from "./ideas.server";
 import type {
   ActionResult,
   AgentCard,
@@ -33,6 +34,11 @@ export const loadPulseFn = createServerFn({ method: "GET" }).handler(async (): P
 export const loadFlowFn = createServerFn({ method: "GET" }).handler(async (): Promise<FlowSnapshot> => {
   const { loadFlow } = await import("./flow.server");
   return loadFlow();
+});
+
+export const loadIdeasFn = createServerFn({ method: "GET" }).handler(async (): Promise<FloorIdeas> => {
+  const { loadFloorIdeas } = await import("./ideas.server");
+  return loadFloorIdeas();
 });
 
 export const loadRichFn = createServerFn({ method: "GET" }).handler(async (): Promise<RichList> => {

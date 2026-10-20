@@ -3,6 +3,7 @@ import { loadHistoryFn, loadNotesFn, loadPulseFn } from "@/lib/poa/fns";
 import type { HistorySnapshot, NotesSnapshot, PulseSnapshot } from "@/lib/poa/types";
 import { PageFrame, Wordmark } from "./bits";
 import { Trollbox } from "./trollbox";
+import { Theater } from "./theater";
 import { Witness } from "./witness";
 
 const emptyPulse = (): PulseSnapshot => ({
@@ -152,9 +153,10 @@ export function PublicFloor() {
         </div>
       </header>
 
-      <p className="mb-4 flex items-center gap-2 text-sm text-muted">
+      <p className="mb-4 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted">
         <span className="live-dot inline-block size-1.5 rounded-full bg-accent" />
         {ago}
+        <span className="text-subtle">· leave it still for 2 minutes and the charts take the screen</span>
       </p>
 
       <Trollbox bare />
@@ -162,6 +164,7 @@ export function PublicFloor() {
       <div className="mt-6">
         <Witness pulse={pulse} history={history} notes={notes} desk={null} chartOn />
       </div>
+      <Theater pulse={pulse} history={history} notes={notes} />
     </PageFrame>
   );
 }
