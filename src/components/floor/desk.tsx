@@ -12,7 +12,7 @@ import {
 import { formatPoints } from "@/lib/poa/format";
 import type { ActionResult, AssignmentView, DeskState, NotesSnapshot } from "@/lib/poa/types";
 import { Btn, Card, Field, Stat, inputClass, Kicker } from "./bits";
-import { auditText, preflight } from "./checks";
+import { preflight } from "./checks";
 import type { FloorView } from "./nav";
 
 const RUBRIC = [
@@ -416,7 +416,7 @@ function GradeSeat({
 }) {
   const [score, setScore] = useState<number | null>(null);
   const [reasoning, setReasoning] = useState("");
-  const flags = auditText(seat.text);
+  const flags = seat.flags;
   const ready = score != null && reasoning.trim().length >= 12 && reasoning.trim().length <= 280;
   return (
     <div className="rounded-lg border border-border p-3">
@@ -441,13 +441,13 @@ function GradeSeat({
         flags.length > 0 ? (
           <ul className="mt-2 flex flex-wrap gap-2">
             {flags.map((flag) => (
-              <li key={flag.id} className="rounded-sm border border-border px-2 py-1 text-xs text-danger">
-                {flag.label}
+              <li key={flag} className="rounded-sm border border-border px-2 py-1 text-xs text-danger">
+                {flag}
               </li>
             ))}
           </ul>
         ) : (
-          <p className="mt-2 text-xs text-ok">No injection pattern flagged.</p>
+          <p className="mt-2 text-xs text-ok">No farm, clone, or injection flag.</p>
         )
       ) : null}
       <div className="mt-3 grid grid-cols-4 gap-2">

@@ -25,6 +25,9 @@ export type AssignmentView = {
   id: string;
   text: string;
   epoch: string | null;
+  words: string[];
+  priors: string[];
+  flags: string[];
 };
 
 export type GradeRecord = {

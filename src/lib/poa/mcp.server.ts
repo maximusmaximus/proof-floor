@@ -74,6 +74,14 @@ const SCHEMAS: Record<string, Record<string, unknown>> = {
     },
     required: ["key", "score"],
   },
+  grade_batch: {
+    type: "object",
+    properties: {
+      key: { type: "string" },
+      items: { type: "array" },
+    },
+    required: ["key", "items"],
+  },
   vote_list: { type: "object", properties: {} },
   vote_cast: {
     type: "object",
@@ -259,6 +267,57 @@ async function callTool(name: string, args: Record<string, unknown>): Promise<{ 
       return {
         payload: { ok: true, error: null, id: pickLoose(raw, ["id", "grade_txid", "txid"]) },
         isError: false,
+      };
+    }
+    if (name === "grade_batch") {
+      const items = Array.isArray(args.items) ? args.items.slice(0, 24) : [];
+      if (!items.length) {
+        return { payload: { ok: false, error: "Pass items as a list of seats." }, isError: true };
+      }
+      const open = parseAssignments(await poaGet("/api/hosted/assignments", { key: trimmed }, 14000));
+      const openIds = new Set(open.map((seat) => seat.id));
+      const sealed: { txid: string; score: number; id: string | null }[] = [];
+      const skipped: string[] = [];
+      const failed: { txid: string; error: string }[] = [];
+      for (const item of items) {
+        const rec = asRecord(item) ?? {};
+        const txid = argAny(rec, ["txid", "answer_txid", "assignment", "id"]);
+        const score = Number(rec.score);
+        const note = argAny(rec, ["note", "reasoning"]).trim().replace(/\s+/g, " ");
+        if (!/^[A-Za-z0-9_-]{6,128}$/.test(txid) || !Number.isInteger(score) || score < 0 || score > 3 || note.length < 12 || note.length > 280) {
+          failed.push({ txid: txid || "?", error: "Each item needs a seat id, a score 0–3, and a 12–280 character note." });
+          continue;
+        }
+        if (!openIds.has(txid)) {
+          skipped.push(txid);
+          continue;
+        }
+        try {
+          const raw =
+            asRecord(
+              await poaGet(
+                "/api/hosted/grade",
+                { key: trimmed, assignment: txid, score: String(score), reasoning: note },
+                16000,
+              ),
+            ) ?? {};
+          sealed.push({ txid, score, id: pickLoose(raw, ["id", "grade_txid", "txid"]) });
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : "The grade was rejected.";
+          if (/already graded|not assigned/i.test(msg)) skipped.push(txid);
+          else failed.push({ txid, error: msg });
+        }
+      }
+      return {
+        payload: {
+          ok: failed.length === 0,
+          sealed_count: sealed.length,
+          already_graded_count: skipped.length,
+          failed_count: failed.length,
+          sealed,
+          failed,
+        },
+        isError: failed.length > 0,
       };
     }
     if (name === "vote_cast") {

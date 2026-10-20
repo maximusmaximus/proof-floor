@@ -1,6 +1,5 @@
 import { formatPoints } from "@/lib/poa/format";
 import type { DeskState, HistorySnapshot, NotesSnapshot, PulseSnapshot } from "@/lib/poa/types";
-import { auditText } from "./checks";
 import type { FloorView } from "./nav";
 import { Witness } from "./witness";
 
@@ -74,7 +73,7 @@ function statusFor(
   }
   if (id === "grade") {
     const n = desk.assignments.length;
-    const flagged = desk.assignments.filter((seat) => auditText(seat.text).length > 0).length;
+    const flagged = desk.assignments.filter((seat) => seat.flags.length > 0).length;
     if (!desk.agent.connected) return { primary: "No agent", secondary: "Seats need a key" };
     if (n === 0) return { primary: "No open seats", secondary: "Nothing to score" };
     return {

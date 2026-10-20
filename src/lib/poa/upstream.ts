@@ -7,6 +7,28 @@ export async function poaGet(
   params: Record<string, string>,
   timeoutMs = 12000,
 ): Promise<unknown> {
+  let last: Error | null = null;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      return await poaOnce(path, params, timeoutMs);
+    } catch (e) {
+      last = e instanceof Error ? e : new Error("The network could not be reached.");
+      const transient =
+        (e instanceof Error && "transient" in e && Boolean((e as { transient?: boolean }).transient)) ||
+        last.message === "The network timed out." ||
+        last.message === "The network could not be reached.";
+      if (!transient || attempt === 2) throw last;
+      await new Promise((resolve) => setTimeout(resolve, 400 * (attempt + 1)));
+    }
+  }
+  throw last ?? new Error("The network could not be reached.");
+}
+
+async function poaOnce(
+  path: string,
+  params: Record<string, string>,
+  timeoutMs: number,
+): Promise<unknown> {
   const url = new URL(path, BASE);
   for (const [k, v] of Object.entries(params)) {
     if (v) url.searchParams.set(k, v);
@@ -18,7 +40,7 @@ export async function poaGet(
       signal: ctrl.signal,
       headers: {
         accept: "application/json",
-        "user-agent": "proof-floor/1.1 (+https://poa.grok.me)",
+        "user-agent": "proof-floor/1.3 (+https://poa.grok.me)",
       },
     });
     const text = await res.text();
@@ -30,7 +52,11 @@ export async function poaGet(
     }
     if (!res.ok) {
       const msg = typeof body === "string" ? body : JSON.stringify(body);
-      throw new Error(redact(`PoA ${res.status}: ${msg}`).slice(0, 360));
+      const error = new Error(redact(`PoA ${res.status}: ${msg}`).slice(0, 360));
+      if (res.status === 429 || res.status === 500 || res.status === 502 || res.status === 503 || res.status === 504) {
+        (error as Error & { transient?: boolean }).transient = true;
+      }
+      throw error;
     }
     if (body && typeof body === "object" && !Array.isArray(body)) {
       const rec = body as Record<string, unknown>;

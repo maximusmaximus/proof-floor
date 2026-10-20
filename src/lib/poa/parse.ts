@@ -1,3 +1,4 @@
+import { auditSeats } from "./audit.ts";
 import { shortAddr } from "./format.ts";
 import type {
   AssignmentView,
@@ -160,7 +161,7 @@ export function parseStanding(body: unknown): StandingView & { address: string |
 
 function assignmentFrom(item: unknown, index: number): AssignmentView | null {
   if (typeof item === "string" && item.trim()) {
-    return { id: item.trim(), text: "", epoch: null };
+    return { id: item.trim(), text: "", epoch: null, words: [], priors: [], flags: [] };
   }
   const o = asRecord(item);
   if (!o) return null;
@@ -174,10 +175,27 @@ function assignmentFrom(item: unknown, index: number): AssignmentView | null {
       return nested ? pickLoose(nested, ["text", "body", "content", "answer"]) : null;
     })() ??
     "";
+  const words = Array.isArray(o.words)
+    ? o.words.filter((word): word is string => typeof word === "string").slice(0, 8)
+    : [];
+  const priorRaw = o.author_prior ?? o.priors;
+  const priors = Array.isArray(priorRaw)
+    ? priorRaw
+        .map((item) => {
+          if (typeof item === "string") return item;
+          const rec = asRecord(item);
+          return rec ? pickLoose(rec, ["answer_text", "text", "answer"]) : null;
+        })
+        .filter((text): text is string => Boolean(text))
+        .slice(0, 8)
+    : [];
   return {
     id: id.slice(0, 128),
     text: text.slice(0, 2000),
     epoch: pickLoose(o, ["epoch", "answer_epoch"]),
+    words,
+    priors,
+    flags: [],
   };
 }
 
@@ -195,7 +213,7 @@ export function parseAssignments(body: unknown): AssignmentView[] {
     const row = assignmentFrom(item, i);
     if (row && row.id) out.push(row);
   });
-  return out.slice(0, 20);
+  return auditSeats(out).slice(0, 20);
 }
 
 function num(v: unknown): number | null {
