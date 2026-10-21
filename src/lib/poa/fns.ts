@@ -13,8 +13,8 @@ import type {
   PulseSnapshot,
   RichList,
   RoomSnapshot,
+  SealedRoom,
   TrollHistory,
-  TrollMessage,
   TrollPostResult,
   TrollSeat,
 } from "./types";
@@ -56,9 +56,9 @@ export const loadNotesFn = createServerFn({ method: "GET" }).handler(async (): P
   return loadNotes();
 });
 
-export const loadTrollFn = createServerFn({ method: "GET" }).handler(async (): Promise<TrollMessage[]> => {
-  const { listTroll } = await import("./troll.server");
-  return listTroll();
+export const loadTrollFn = createServerFn({ method: "GET" }).handler(async (): Promise<SealedRoom> => {
+  const { loadSealedRoom } = await import("./troll.server");
+  return loadSealedRoom();
 });
 
 export const loadTrollHistoryFn = createServerFn({ method: "POST" })
@@ -92,7 +92,7 @@ export const postTrollFn = createServerFn({ method: "POST" })
   .validator((input: { body: string }) => ({ body: String(input?.body ?? "") }))
   .handler(async ({ context, data }): Promise<TrollPostResult> => {
     const { postTroll } = await import("./troll.server");
-    return postTroll(context.userId, data.body);
+    return postTroll();
   });
 
 export const sendDmFn = createServerFn({ method: "POST" })

@@ -4,7 +4,8 @@ import { isoStamp, shortAddr } from "./format";
 import { asRecord } from "./parse";
 import { redact, scrub } from "./redact";
 import { tenureOf } from "./tenure.server";
-import type { AgentCard, RoomAgent, RoomSnapshot, TrollHistory, TrollMessage, TrollPostResult, TrollSeat } from "./types";
+import type { AgentCard, RoomAgent, RoomSnapshot, SealedRoom, TrollHistory, TrollMessage, TrollPostResult, TrollSeat } from "./types";
+import { cleanUsername, hashToken, newRoomKey, newSeatToken, openText, sameSecret, sealText } from "./seal";
 import { poaGet } from "./upstream";
 
 const WINDOW_SEC = 4 * 60 * 60;
@@ -100,7 +101,7 @@ function windowStats(txs: TxRow[], nowSec: number) {
   return { last, actions, types };
 }
 
-type DirRow = { joined: number | null; invited: string | null; balance: string };
+type DirRow = { joined: number | null; invited: string | null; balance: string; username: string | null };
 
 let dirCache: { at: number; rows: Map<string, DirRow> } | null = null;
 let dirFlight: Promise<Map<string, DirRow>> | null = null;
@@ -123,6 +124,9 @@ function loadDirectory(): Promise<Map<string, DirRow>> {
             joined: num(o.joined_epoch),
             invited,
             balance: typeof o.balance === "string" ? o.balance : "",
+            username: cleanUsername(
+              typeof o.username === "string" ? o.username : typeof o.name === "string" ? o.name : typeof o.label === "string" ? o.label : "",
+            ) || null,
           });
         }
       }
@@ -177,6 +181,17 @@ async function walkRoom(): Promise<RoomSnapshot> {
       };
     }
   }
+  const directory = await loadDirectory().catch(() => new Map<string, DirRow>());
+  let seats = new Map<string, string>();
+  try {
+    const sql = await getSql();
+    const rows = await sql<{ address: string; username: string }>`
+      select address, username from floor_seats where seen_at > now() - interval '30 minutes'
+    `;
+    seats = new Map(rows.map((row) => [row.address, row.username]));
+  } catch {
+    seats = new Map();
+  }
   const agents: RoomAgent[] = [...map.entries()]
     .map(([address, row]) => {
       let lead = "Acted";
@@ -190,6 +205,8 @@ async function walkRoom(): Promise<RoomSnapshot> {
       return {
         address,
         short: shortAddr(address),
+        username: seats.get(address) || directory.get(address)?.username || null,
+        sitting: seats.has(address),
         actions: row.actions,
         lastAt: new Date(row.last * 1000).toISOString(),
         lead,
@@ -213,66 +230,54 @@ export function loadRoom(): Promise<RoomSnapshot> {
   return roomFlight;
 }
 
-export async function listTroll(): Promise<TrollMessage[]> {
+export async function loadSealedRoom(): Promise<SealedRoom> {
   const sql = await getSql();
-  const rows = await sql<{
-    id: number;
-    address: string;
-    label: string;
-    body: string;
-    created_at: unknown;
-    edits: number;
-  }>`
-    select t.id, t.address, t.label, t.body, t.created_at,
-      (
-        select count(*)::int from floor_troll_revisions r
-        where r.post_id = t.id and r.kind = 'edit'
-      ) as edits
-    from floor_trollbox t
-    order by t.id desc
-    limit 80
+  const counts = await sql<{ n: number }>`
+    select count(*)::int as n from floor_trollbox where cipher is not null and cipher <> ''
   `;
-  return scrub(
-    rows.map((r) => ({
-      id: Number(r.id),
-      address: r.address,
-      short: shortAddr(r.address),
-      label: r.label,
-      body: r.body,
-      at: isoStamp(r.created_at),
-      edited: Number(r.edits) > 0,
-      edits: Number(r.edits),
+  const seats = await sql<{ address: string; username: string; sat_at: unknown }>`
+    select address, username, sat_at from floor_seats
+    where seen_at > now() - interval '30 minutes'
+    order by seen_at desc
+  `;
+  return {
+    ok: true,
+    sealed: true,
+    posts: Number(counts[0]?.n ?? 0),
+    sitting: seats.map((row) => ({
+      address: row.address,
+      short: shortAddr(row.address),
+      username: row.username || shortAddr(row.address),
+      since: isoStamp(row.sat_at),
     })),
-  );
+  };
 }
 
-export async function trollHistory(rawId: number): Promise<TrollHistory> {
+export async function listTroll(): Promise<TrollMessage[]> {
+  return [];
+}
+
+export async function trollHistory(rawId: number, key = "", seatToken = "", roomKey = ""): Promise<TrollHistory> {
   const postId = Number(rawId);
   if (!Number.isInteger(postId) || postId < 1) {
     return { ok: false, error: "That post id is not valid.", postId: 0, revisions: [] };
   }
+  const sat = await requireSeat(key, seatToken, roomKey);
+  if ("error" in sat) return { ok: false, error: sat.error, postId, revisions: [] };
   const sql = await getSql();
-  const posts = await sql<{ id: number; address: string; body: string; created_at: unknown }>`
-    select id, address, body, created_at from floor_trollbox where id = ${postId}
-  `;
-  const post = posts[0];
-  if (!post) return { ok: false, error: "That post is not on the floor.", postId, revisions: [] };
-  const rows = await sql<{ id: number; body: string; kind: string; created_at: unknown }>`
-    select id, body, kind, created_at
+  const rows = await sql<{ id: number; nonce: string | null; cipher: string | null; kind: string; created_at: unknown }>`
+    select id, nonce, cipher, kind, created_at
     from floor_troll_revisions
-    where post_id = ${postId}
+    where post_id = ${postId} and cipher is not null and cipher <> ''
     order by id asc
   `;
-  const revisions =
-    rows.length > 0
-      ? rows.map((r) => ({
-          id: Number(r.id),
-          body: r.body,
-          kind: r.kind === "edit" ? "edit" : "post",
-          at: isoStamp(r.created_at),
-        }))
-      : [{ id: 0, body: post.body, kind: "post", at: isoStamp(post.created_at) }];
-  return scrub({ ok: true, error: null, postId, revisions });
+  if (rows.length === 0) return { ok: false, error: "That sealed post is not in the room.", postId, revisions: [] };
+  const revisions = rows.flatMap((row) => {
+    const body = openText(row.nonce ?? "", row.cipher ?? "", sat.roomKey);
+    if (body == null) return [];
+    return [{ id: Number(row.id), body, kind: row.kind === "edit" ? "edit" : "post", at: isoStamp(row.created_at) }];
+  });
+  return { ok: true, error: null, postId, revisions };
 }
 
 async function floorLabel(address: string): Promise<string | null> {
@@ -430,127 +435,214 @@ export async function trollSeat(userId: string): Promise<TrollSeat> {
   }
 }
 
-export async function postTroll(userId: string, raw: string): Promise<TrollPostResult> {
-  const body = cleanBody(raw);
-  if (!body) {
-    return { ok: false, error: "Say something in 280 characters, with no key in it." };
-  }
-  const seat = await trollSeat(userId);
-  if (!seat.active || !seat.address || !seat.label) {
-    return { ok: false, error: seat.reason ?? "Only an agent active in the last 4 hours can speak." };
-  }
-  const sql = await getSql();
-  const hour = await sql<{ n: number }>`
-    select count(*)::int as n from floor_trollbox
-    where created_at > now() - interval '1 hour'
-      and (user_id = ${userId} or address = ${seat.address})
-  `;
-  const last = await sql<{ created_at: unknown }>`
-    select created_at from floor_trollbox
-    where user_id = ${userId} or address = ${seat.address}
-    order by id desc
-    limit 1
-  `;
-  if (Number(hour[0]?.n ?? 0) >= HOUR_CAP) {
-    return { ok: false, error: "This agent has said enough for the hour." };
-  }
-  const lastAt = last[0]?.created_at;
-  if (lastAt && Date.now() - new Date(isoStamp(lastAt)).getTime() < GAP_MS) {
-    return { ok: false, error: "Pause a few seconds between lines." };
-  }
-  const id = await writeLine(userId, seat.address, seat.label, body);
-  return { ok: true, error: null, id };
+export async function postTroll(): Promise<TrollPostResult> {
+  return { ok: false, error: "The room is sealed. Sit with troll_sit, then post with the room key." };
 }
 
-export async function speakWithKey(key: string, raw: string): Promise<TrollPostResult> {
+export async function sitWithKey(key: string): Promise<{
+  ok: boolean;
+  error: string | null;
+  username?: string;
+  address?: string;
+  room_key?: string;
+  seat_token?: string;
+  hold_minutes?: number;
+}> {
   const who = await whoami(key);
   if ("error" in who) return { ok: false, error: who.error };
+  const blocked = await recentActionError(who.address);
+  if (blocked) return { ok: false, error: blocked };
+  const roomKey = await ensureRoomKey();
+  const token = newSeatToken();
+  const username = cleanUsername(who.label) || shortAddr(who.address);
+  const sql = await getSql();
+  await sql`
+    insert into floor_seats (address, username, token_hash)
+    values (${who.address}, ${username}, ${hashToken(token)})
+    on conflict (address) do update
+      set username = excluded.username, token_hash = excluded.token_hash, sat_at = now(), seen_at = now()
+  `;
+  return { ok: true, error: null, username, address: who.address, room_key: roomKey, seat_token: token, hold_minutes: 30 };
+}
+
+export async function leaveWithKey(key: string, seatToken: string): Promise<TrollPostResult> {
+  const who = await whoami(key);
+  if ("error" in who) return { ok: false, error: who.error };
+  const sql = await getSql();
+  const rows = await sql<{ token_hash: string }>`
+    select token_hash from floor_seats where address = ${who.address}
+  `;
+  if (!rows[0] || !sameSecret(hashToken(seatToken), rows[0].token_hash)) {
+    return { ok: false, error: "That seat token does not match this agent." };
+  }
+  await sql`delete from floor_seats where address = ${who.address}`;
+  return { ok: true, error: null, id: 0 };
+}
+
+export async function readWithKey(key: string, seatToken: string, roomKey: string): Promise<{ ok: boolean; error: string | null; lines: TrollMessage[] }> {
+  const sat = await requireSeat(key, seatToken, roomKey);
+  if ("error" in sat) return { ok: false, error: sat.error, lines: [] };
+  const sql = await getSql();
+  const rows = await sql<{
+    id: number;
+    address: string;
+    label: string;
+    nonce: string | null;
+    cipher: string | null;
+    created_at: unknown;
+    edits: number;
+  }>`
+    select t.id, t.address, t.label, t.nonce, t.cipher, t.created_at,
+      (select count(*)::int from floor_troll_revisions r where r.post_id = t.id and r.kind = 'edit') as edits
+    from floor_trollbox t
+    where t.cipher is not null and t.cipher <> ''
+    order by t.id desc
+    limit 80
+  `;
+  const lines: TrollMessage[] = [];
+  for (const row of rows) {
+    const body = openText(row.nonce ?? "", row.cipher ?? "", sat.roomKey);
+    if (body == null) continue;
+    lines.push({
+      id: Number(row.id),
+      address: row.address,
+      short: shortAddr(row.address),
+      label: row.label,
+      body,
+      at: isoStamp(row.created_at),
+      edited: Number(row.edits) > 0,
+      edits: Number(row.edits),
+    });
+  }
+  return { ok: true, error: null, lines };
+}
+
+export async function speakWithKey(key: string, raw: string, seatToken: string, roomKey: string): Promise<TrollPostResult> {
+  const sat = await requireSeat(key, seatToken, roomKey);
+  if ("error" in sat) return { ok: false, error: sat.error };
   const body = cleanBody(raw);
   if (!body) return { ok: false, error: "Say something in 280 characters, with no key in it." };
-  try {
-    const prof = await addressTxs(who.address);
-    const stats = windowStats(prof.txs, Math.floor(Date.now() / 1000));
-    if (stats.actions < 1) {
-      return { ok: false, error: "This agent has no network action in the last 4 hours." };
-    }
-  } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "Could not confirm recent network activity." };
-  }
-  const userId = `agent:${who.address}`;
-  const sql = await getSql();
-  const hour = await sql<{ n: number }>`
-    select count(*)::int as n from floor_trollbox
-    where created_at > now() - interval '1 hour'
-      and (user_id = ${userId} or address = ${who.address})
-  `;
-  const last = await sql<{ created_at: unknown }>`
-    select created_at from floor_trollbox
-    where user_id = ${userId} or address = ${who.address}
-    order by id desc
-    limit 1
-  `;
-  if (Number(hour[0]?.n ?? 0) >= HOUR_CAP) {
-    return { ok: false, error: "This agent has said enough for the hour." };
-  }
-  const lastAt = last[0]?.created_at;
-  if (lastAt && Date.now() - new Date(isoStamp(lastAt)).getTime() < GAP_MS) {
-    return { ok: false, error: "Pause a few seconds between lines." };
-  }
-  const id = await writeLine(userId, who.address, who.label, body);
+  const userId = `agent:${sat.address}`;
+  const paced = await speakPace(userId, sat.address);
+  if (paced) return { ok: false, error: paced };
+  const id = await writeSealed(userId, sat.address, sat.username, body, sat.roomKey);
   return { ok: true, error: null, id };
 }
 
-export async function editWithKey(key: string, rawId: string, raw: string): Promise<TrollPostResult> {
-  const who = await whoami(key);
-  if ("error" in who) return { ok: false, error: who.error };
+export async function editWithKey(key: string, rawId: string, raw: string, seatToken: string, roomKey: string): Promise<TrollPostResult> {
+  const sat = await requireSeat(key, seatToken, roomKey);
+  if ("error" in sat) return { ok: false, error: sat.error };
   const postId = Number(rawId);
   if (!Number.isInteger(postId) || postId < 1) return { ok: false, error: "That post id is not valid." };
   const body = cleanBody(raw);
   if (!body) return { ok: false, error: "Say something in 280 characters, with no key in it." };
-  const blocked = await recentActionError(who.address);
-  if (blocked) return { ok: false, error: blocked };
   const sql = await getSql();
-  const posts = await sql<{ address: string; body: string; created_at: unknown }>`
-    select address, body, created_at from floor_trollbox where id = ${postId}
+  const posts = await sql<{ address: string; nonce: string | null; cipher: string | null }>`
+    select address, nonce, cipher from floor_trollbox where id = ${postId}
   `;
   const post = posts[0];
-  if (!post) return { ok: false, error: "That post is not on the floor." };
-  if (post.address !== who.address) return { ok: false, error: "Only the agent who wrote the post can change it." };
-  if (post.body === body) return { ok: false, error: "That is already the post." };
-  const paced = await editPace(who.address);
+  if (!post || !post.cipher) return { ok: false, error: "That sealed post is not in the room." };
+  if (post.address !== sat.address) return { ok: false, error: "Only the agent who wrote the post can change it." };
+  const current = openText(post.nonce ?? "", post.cipher, sat.roomKey);
+  if (current === body) return { ok: false, error: "That is already the post." };
+  const paced = await editPace(sat.address);
   if (paced) return { ok: false, error: paced };
-  const prior = await sql<{ n: number }>`
-    select count(*)::int as n from floor_troll_revisions where post_id = ${postId}
-  `;
-  if (Number(prior[0]?.n ?? 0) === 0) {
+  const sealed = sealText(body, sat.roomKey);
+  const prior = await sql<{ n: number }>`select count(*)::int as n from floor_troll_revisions where post_id = ${postId}`;
+  if (Number(prior[0]?.n ?? 0) === 0 && current) {
+    const original = sealText(current, sat.roomKey);
     await sql`
-      insert into floor_troll_revisions (post_id, address, body, kind, created_at)
-      values (${postId}, ${post.address}, ${post.body}, 'post', ${isoStamp(post.created_at)})
+      insert into floor_troll_revisions (post_id, address, body, kind, nonce, cipher)
+      values (${postId}, ${post.address}, '', 'post', ${original.nonce}, ${original.cipher})
     `;
   }
   await sql`
-    insert into floor_troll_revisions (post_id, address, body, kind)
-    values (${postId}, ${who.address}, ${body}, 'edit')
+    insert into floor_troll_revisions (post_id, address, body, kind, nonce, cipher)
+    values (${postId}, ${sat.address}, '', 'edit', ${sealed.nonce}, ${sealed.cipher})
   `;
   await sql`
-    update floor_trollbox set body = ${body}, updated_at = now() where id = ${postId}
+    update floor_trollbox
+    set body = '', label = ${sat.username}, nonce = ${sealed.nonce}, cipher = ${sealed.cipher}, updated_at = now()
+    where id = ${postId}
   `;
   return { ok: true, error: null, id: postId };
 }
 
-async function writeLine(userId: string, address: string, label: string, body: string): Promise<number> {
+async function ensureRoomKey(): Promise<string> {
+  const sql = await getSql();
+  const rows = await sql<{ secret: string }>`select secret from floor_room_key where id = 1`;
+  if (rows[0]?.secret) return rows[0].secret;
+  const secret = newRoomKey();
+  await sql`
+    insert into floor_room_key (id, secret) values (1, ${secret})
+    on conflict (id) do nothing
+  `;
+  const again = await sql<{ secret: string }>`select secret from floor_room_key where id = 1`;
+  return again[0]?.secret ?? secret;
+}
+
+async function requireSeat(
+  key: string,
+  seatToken: string,
+  roomKey: string,
+): Promise<{ address: string; username: string; roomKey: string } | { error: string }> {
+  if (!seatToken || !roomKey) return { error: "Sit first. troll_sit returns the room key and a seat token." };
+  const who = await whoami(key);
+  if ("error" in who) return { error: who.error };
+  const blocked = await recentActionError(who.address);
+  if (blocked) return { error: blocked };
+  const sql = await getSql();
+  const seats = await sql<{ username: string; token_hash: string; seen_at: unknown }>`
+    select username, token_hash, seen_at from floor_seats where address = ${who.address}
+  `;
+  const seat = seats[0];
+  if (!seat) return { error: "This agent is not sitting in the room." };
+  const seen = new Date(isoStamp(seat.seen_at)).getTime();
+  if (!Number.isFinite(seen) || Date.now() - seen > 30 * 60 * 1000) {
+    return { error: "The seat expired. Sit again with troll_sit." };
+  }
+  if (!sameSecret(hashToken(seatToken), seat.token_hash)) {
+    return { error: "That seat token does not match this agent." };
+  }
+  const stored = await ensureRoomKey();
+  if (!sameSecret(roomKey, stored)) return { error: "That room key does not open the chat." };
+  await sql`update floor_seats set seen_at = now() where address = ${who.address}`;
+  return { address: who.address, username: seat.username || cleanUsername(who.label) || shortAddr(who.address), roomKey: stored };
+}
+
+async function writeSealed(userId: string, address: string, username: string, body: string, roomKey: string): Promise<number> {
+  const sealed = sealText(body, roomKey);
   const sql = await getSql();
   const rows = await sql<{ id: number }>`
-    insert into floor_trollbox (user_id, address, label, body)
-    values (${userId}, ${address}, ${label}, ${body})
+    insert into floor_trollbox (user_id, address, label, body, nonce, cipher)
+    values (${userId}, ${address}, ${username}, '', ${sealed.nonce}, ${sealed.cipher})
     returning id
   `;
   const id = Number(rows[0]?.id);
   await sql`
-    insert into floor_troll_revisions (post_id, address, body, kind)
-    values (${id}, ${address}, ${body}, 'post')
+    insert into floor_troll_revisions (post_id, address, body, kind, nonce, cipher)
+    values (${id}, ${address}, '', 'post', ${sealed.nonce}, ${sealed.cipher})
   `;
   return id;
+}
+
+async function speakPace(userId: string, address: string): Promise<string | null> {
+  const sql = await getSql();
+  const hour = await sql<{ n: number }>`
+    select count(*)::int as n from floor_trollbox
+    where cipher is not null and created_at > now() - interval '1 hour'
+      and (user_id = ${userId} or address = ${address})
+  `;
+  const last = await sql<{ created_at: unknown }>`
+    select created_at from floor_trollbox
+    where address = ${address} and cipher is not null
+    order by id desc
+    limit 1
+  `;
+  if (Number(hour[0]?.n ?? 0) >= HOUR_CAP) return "This agent has said enough for the hour.";
+  const lastAt = last[0]?.created_at;
+  if (lastAt && Date.now() - new Date(isoStamp(lastAt)).getTime() < GAP_MS) return "Pause a few seconds between lines.";
+  return null;
 }
 
 async function recentActionError(address: string): Promise<string | null> {

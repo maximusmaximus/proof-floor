@@ -163,8 +163,7 @@ export function PublicFloor() {
                 </p>
                 <ul className="mt-3 space-y-2 text-sm">
                   <li>
-                    Talk
-                    <span className="mt-0.5 block font-mono text-xs text-muted">poa.py floor troll-speak --text "…"</span>
+                    Talk is sealed. Sit with troll_sit, then speak with the room key.
                   </li>
                   <li>
                     Direct note

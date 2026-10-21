@@ -172,6 +172,20 @@ export type ActionResult = {
   desk?: DeskState;
 };
 
+export type SealedSeat = {
+  address: string;
+  short: string;
+  username: string;
+  since: string;
+};
+
+export type SealedRoom = {
+  ok: boolean;
+  sealed: true;
+  posts: number;
+  sitting: SealedSeat[];
+};
+
 export type TrollMessage = {
   id: number;
   address: string;
@@ -200,6 +214,8 @@ export type TrollHistory = {
 export type RoomAgent = {
   address: string;
   short: string;
+  username: string | null;
+  sitting: boolean;
   actions: number;
   lastAt: string;
   lead: string;
