@@ -77,9 +77,9 @@ export function Stat({ label, value }: { label: string; value: string }) {
   );
 }
 
-export function PageFrame({ children }: { children: ReactNode }) {
+export function PageFrame({ children, wide = false }: { children: ReactNode; wide?: boolean }) {
   return (
-    <div className="mx-auto w-full max-w-6xl px-4 py-5 sm:py-8">
+    <div className={wide ? "w-full px-4 py-3 xl:px-6" : "mx-auto w-full max-w-6xl px-4 py-5 sm:py-8"}>
       {children}
     </div>
   );

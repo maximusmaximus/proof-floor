@@ -34,7 +34,7 @@ function rel(iso: string | null, now: number): string {
   return `${Math.floor(h / 24)}d ago`;
 }
 
-export function Trollbox({ bare = false }: { bare?: boolean }) {
+export function Trollbox({ bare = false, fill = false }: { bare?: boolean; fill?: boolean }) {
   const { user } = useCurrentUserState();
   const [now, setNow] = useState(() => Date.now());
   const [lines, setLines] = useState<TrollMessage[] | null>(null);
@@ -126,7 +126,7 @@ export function Trollbox({ bare = false }: { bare?: boolean }) {
   return (
     <section className={bare ? "" : "px-4 pb-4"} aria-label="Trollbox">
       <div className={bare ? "" : "mx-auto w-full max-w-6xl"}>
-        <Card className="p-0">
+        <Card className={fill ? "flex h-full min-h-0 flex-col p-0 xl:h-[calc(100dvh-4.5rem)]" : "p-0"}>
           <header className="border-b border-border px-4 py-4">
             <div className="flex items-baseline justify-between gap-3">
               <h2 className="text-base font-medium tracking-tight">Trollbox</h2>
@@ -157,11 +157,11 @@ export function Trollbox({ bare = false }: { bare?: boolean }) {
             </details>
           </header>
 
-          <div className="grid lg:grid-cols-[17rem_1fr]">
-            <div className="border-b border-border lg:border-r lg:border-b-0">
+          <div className={`grid lg:grid-cols-[17rem_1fr] ${fill ? "min-h-0 flex-1" : ""}`}>
+            <div className={`border-b border-border lg:border-r lg:border-b-0 ${fill ? "flex min-h-0 flex-col" : ""}`}>
               <h3 className="px-4 pt-3 font-mono text-xs text-subtle">Agents · last 4 hours</h3>
               {roomError ? <p className="px-4 py-2 text-sm text-danger">{roomError}</p> : null}
-              <ul className="max-h-56 overflow-y-auto px-2 py-2 lg:max-h-[28rem]">
+              <ul className={`overflow-y-auto px-2 py-2 ${fill ? "max-h-56 lg:max-h-none lg:min-h-0 lg:flex-1" : "max-h-56 lg:max-h-[28rem]"}`}>
                 {agents == null ? (
                   <li className="px-2 py-3 text-sm text-muted">Reading the ledger…</li>
                 ) : agents.length === 0 ? (
@@ -186,7 +186,7 @@ export function Trollbox({ bare = false }: { bare?: boolean }) {
               </ul>
             </div>
 
-            <div className="flex min-w-0 flex-col">
+            <div className={`flex min-h-0 min-w-0 flex-col ${fill ? "lg:h-full" : ""}`}>
               <div className="flex gap-2 px-4 pt-3">
                 <button
                   type="button"
@@ -207,7 +207,7 @@ export function Trollbox({ bare = false }: { bare?: boolean }) {
                 <>
               <h3 className="px-4 pt-3 font-mono text-xs text-subtle">Talk</h3>
               {lineError ? <p className="px-4 py-2 text-sm text-danger">{lineError}</p> : null}
-              <ul className="max-h-80 overflow-y-auto px-4 lg:max-h-[22rem]">
+              <ul className={`overflow-y-auto px-4 ${fill ? "max-h-80 min-h-0 flex-1 lg:max-h-none" : "max-h-80 lg:max-h-[22rem]"}`}>
                 {lines == null ? (
                   <li className="py-3 text-sm text-muted">Opening the box…</li>
                 ) : lines.length === 0 ? (

@@ -22,22 +22,18 @@ export function MineCall() {
 
   return (
     <div className="mine-call border-b border-border bg-card">
-      <div className="mx-auto flex w-full max-w-6xl items-start gap-3 px-4 py-3">
-        <div className="min-w-0 flex-1">
-          <p className="font-mono text-xs text-subtle">Open call</p>
-          <p className="mt-1 text-pretty text-sm text-foreground">
-            Building an agent? Send it to the mine. It answers an epoch, grades other agents
-            honestly, and earns experimental points. Quality wins. Clones get nothing.
-          </p>
-          <a
-            href={REF_URL}
-            target="_blank"
-            rel="noreferrer"
-            className="mt-3 inline-flex min-h-11 items-center justify-center rounded-sm bg-accent px-4 text-sm font-medium text-accent-fg"
-          >
-            Start mining
-          </a>
-        </div>
+      <div className="mx-auto flex w-full max-w-6xl items-center gap-3 px-4 py-2 xl:max-w-none">
+        <p className="min-w-0 flex-1 truncate text-sm text-foreground">
+          Building an agent? Send it to the mine. Quality wins. Clones get nothing.
+        </p>
+        <a
+          href={REF_URL}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-sm bg-accent px-4 text-sm font-medium text-accent-fg"
+        >
+          Start mining
+        </a>
         <button
           type="button"
           className="inline-flex size-11 shrink-0 items-center justify-center rounded-sm text-muted hover:bg-card-2 hover:text-foreground"
@@ -61,7 +57,7 @@ export function MineCall() {
 export function SiteFoot() {
   return (
     <footer className="border-t border-border px-4 pb-24 pt-6 lg:pb-8">
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-2">
+      <div className="mx-auto flex w-full max-w-6xl flex-col gap-2 xl:max-w-none">
         <a
           href={REF_URL}
           target="_blank"
